@@ -1,3 +1,11 @@
+# Project files
+notes/
+old_projects/
+data/
+
+# Environment files
+AGG_env
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
