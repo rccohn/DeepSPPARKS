@@ -12,13 +12,13 @@ def compute_node_features(mask, mob, degree):
     mob- int label of mobility
     degree- int number of neighbors
 
-    features: area, perimeter, major/minor axis, equivalent diameter, moments_central
+    features: area, perimeter, major/minor axis, equivalent diameter
     """
 
     temp = np.zeros(3)
     temp[mob] = 1
 
-    props = ['area', 'perimeter', 'equivalent_diameter', 'major_axis_length', 'minor_axis_length', 'moments']
+    props = ['area', 'perimeter', 'equivalent_diameter', 'major_axis_length', 'minor_axis_length']
 
     features = skimage.measure.regionprops_table(mask.astype(np.uint8), properties=props)
 
@@ -27,11 +27,12 @@ def compute_node_features(mask, mob, degree):
 
     return features
 
-
+# TODO since only difference between edges AB and BA is the components of the unit vector,
+#      look into calling this only once per pair of edges
 def compute_edge_features(labels, src, target):
     """
     labels: r x c int image where pixels are grain ids
-    source, target: int, source, target of directed edge
+    src, target: int, source, target indecies of directed edge
 
     properties:
     length: centroid to centroid distance between source and target
@@ -51,8 +52,8 @@ def compute_edge_features(labels, src, target):
 
 
     # centeroid to centroid distance, squeezed because there is only 1 point
-    edge_length = cdist(centroid_source[np.newaxis,:],
-                        centroid_target[np.newaxis,:]).squeeze()
+    edge_length = float(cdist(centroid_source[np.newaxis,:],
+                        centroid_target[np.newaxis,:]))
 
     # unit vector pointing from target to source (r,c coords)
     # (for directed graphs, neighborhood of source is defined by edges from target to source)
@@ -76,8 +77,11 @@ def compute_edge_features(labels, src, target):
     # number of pixels on boundary between source and target grains
     # compute distance from all edge pixels in source to all edge pixels in target
     # find the minimum distance (ie distance to closest pixel)
-    # count the number of edge pixels (minimum distance < 1.5 pixels)
-    n_bound = (cdist(where_se, where_te).min(axis=0) < 1.2).sum()
+    # count the number of edge pixels (minimum distance == 1.0 pixels)
+    cd = cdist(where_se, where_te)
+    n_bound_1 = (cd.min(axis=0) == 1.0).sum()
+    n_bound_2 = (cd.min(axis=1) == 1.0).sum()
+    n_bound = max(n_bound_1, n_bound_2)
 
     features = {'length': edge_length,
                 'unit_vector': v,
@@ -105,15 +109,18 @@ def compute_graph_features(img, grain_ids, grain_sizes, timesteps):
     bulk_mask = np.logical_and(grow_mask, grain_ids != 0)
     candidate_mask = grain_ids == 0
 
-    cgr = grow_ratio_all[candidate_mask].mean()
-    bgr = grow_ratio_all[bulk_mask].mean()
-    cgrr = cgr / bgr
+    cgr = grow_ratio_all[candidate_mask].mean()  # candidate growth ratio
+    bgr = grow_ratio_all[bulk_mask].mean()  # bulk growth ratio
+    crgr = cgr / bgr  # candidate relative growth ratio
 
+    high_mobility_fraction = (grain_ids == 2).sum() / len(grain_ids)
+    high_mobility_area_fraction = grain_sizes[0, grain_ids == 2].sum()/grain_sizes[0, :].sum()
     features = {'candidate_growth_ratio': cgr,
                 'bulk_growth_ratio': bgr,
-                'candidate_grr': cgrr,
-                'metadata': metadata
-                }
+                'candidate_rgr': crgr,
+                'metadata': metadata,
+                'fraction_red_grains': high_mobility_fraction,
+                'area_fraction_red_grains': high_mobility_area_fraction}
 
     return features
 

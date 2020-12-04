@@ -6,7 +6,7 @@ from skimage.morphology import binary_dilation
 import graphviz  # https://pypi.org/project/graphviz/
 from pathlib import Path
 
-import graph_features as gf
+from . import graph_features as gf
 
 
 def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_features=None, compute_edge_features=None,
@@ -69,8 +69,14 @@ def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_feature
 
     graph_features = compute_graph_features(img, grain_labels, grain_sizes, timesteps)
 
-    G = nx.DiGraph()  # simple, undirected graph
+    G = Graph()  # simple, undirected graph
 
+    # TODO this part is slow, look into parallelizing?
+    #     Compute node/edge features in parallel and then add everything
+    #     to Graph object afer loop? How to avoid double computation of
+    #     edge properties?
+    #       Alternatively: many graphs will have to be computed, keep
+    #      this function as single-thread and run in parallel for multiple graphs
     for idx in range(len(grain_labels)):
         img_roll = _roll_img(img, idx)
         grain_mask = img_roll == idx  # selects single grain
@@ -100,10 +106,9 @@ def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_feature
 
         G.add_edges_from(ebunch)
 
-    graph = {'attributes': graph_features,
-             'graph': G}
+    G.graph_attr = graph_features
 
-    return graph
+    return G
 
 # TODO Refine this function once you figure out exactly which quantities are needed.
 # TODO groups- candidate, bulk, red, blue
@@ -221,8 +226,16 @@ def create_graph(root):
     ?
     """
     root = Path(root)  # forces root to be path object
-    init = h5py.File(root / 'initial.dream3d', 'r')
-    stats = h5py.File(root / 'stats.h5', 'r')
+    initfile = root / 'initial.dream3d'
+    statsfile = root / 'stats.h5'
+
+    assert initfile.is_file(), f'{str(initfile.absolute())} not found!'
+    assert statsfile.is_file(), f'{str(statsfile.absolute())} not found!'
+
+    init = h5py.File(initfile, 'r')
+    stats = h5py.File(statsfile, 'r')
+
+
 
     sv = init['DataContainers']['SyntheticVolume']
     # grain_ids contains n x m array of pixels. Each pixel has integer value indicating the grain id that it belongs to
@@ -248,6 +261,7 @@ def create_graph(root):
     grain_sizes = np.asarray(stats['grainsize'])[:, 1:]
 
     G = img_to_graph(grain_ids, grain_labels, grain_sizes, timesteps)
+    G.root = root.absolute()
     return G
 
 
@@ -328,3 +342,63 @@ def _roll_img(img, i):
     img_roll = np.roll(img, (row_shift, col_shift), axis=(0, 1))
 
     return img_roll
+
+class Graph(nx.DiGraph):
+    """
+    Wraps networkx.DiGraph to add support for graph level features and export to pytorch geometric (pyg)
+    and dgl datasets.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._graph_attributes = None
+        self._root = None
+
+    @property
+    def graph_attr(self):
+        return self._graph_attributes
+
+    @graph_attr.setter
+    def graph_attr(self, ga):
+        assert type(ga) == dict
+        self._graph_attributes = ga
+
+    @property
+    def root(self):
+        return self._root
+
+    @root.setter
+    def root(self, r):
+        assert type(r) is str or isinstance(r, Path)
+        self._root = r
+
+    def to_pyg_dataset(self):
+        # TODO implement this
+        pass
+
+    def to_dgl_dataset(self):
+        # TODO implement this
+        pass
+
+    def to_numpydict(self):
+        # TODO implement this
+        """
+        returns edge list, node features, edge features, graph features
+        """
+        pass
+
+    def to_json(self):
+        # TODO implement this
+        pass
+
+    def from_json(self):
+        # TODO implement this
+        pass
+
+    # def __repr__(self):
+    #     # TODO implement this
+    #     pass
+
+    def copy(self):
+        # TODO implement this
+        pass
