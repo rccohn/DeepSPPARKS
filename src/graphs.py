@@ -1,12 +1,13 @@
 import h5py
+import json
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 from skimage.morphology import binary_dilation
 import graphviz  # https://pypi.org/project/graphviz/
-from pathlib import Path
+from pathlib import Path, PurePath
 
-from . import graph_features as gf
+import src.graph_features as gf
 
 
 def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_features=None, compute_edge_features=None,
@@ -110,105 +111,8 @@ def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_feature
 
     return G
 
-# TODO Refine this function once you figure out exactly which quantities are needed.
-# TODO groups- candidate, bulk, red, blue
-# TODO mask- grow
-# TODO for each group, and each subset (grow/nogrow):
-#   number, avg size, avg grow ratio, subset_mask (so individual stats can be captured)
 
-# TODO offset grain_ids by 1 to account for 0 indexing
-def agg_stats(grain_sizes, grain_labels, timesteps):
-    """
-
-
-
-    References:
-    DeCost, Holm, Phenomenology of Abnormal Grain Growth in Systems with Nonuniform Grain Boundary Mobility,
-    MMTA, 2017
-    """
-    total_area = grain_sizes[0].sum()  # total number of pixels in simulation box
-
-    candidate_idx = np.argmax(grain_labels == 1)
-
-    initial_average_size = grain_sizes[0].mean()
-    initial_candidate_size = grain_sizes[0, candidate_idx]
-    # todo factor out destroyed grains
-    final_candidate_size = grain_sizes[-1, candidate_idx]
-
-    initial_grains = np.unique(grain_labels, return_counts=True)
-
-    mask = grain_sizes[-1] > 0  # select grains that were not consumed during simulation
-    final_grains = np.unique(grain_labels[mask], return_counts=True)
-    final_average_size = grain_sizes[-1, mask].mean()
-
-    not_candidate_mask = grain_labels != 1
-    growth_ratio_all = grain_sizes[-1] / grain_sizes[0]  # A(final)/A(initial), includes all (including consumed) grains
-    growth_mask = growth_ratio_all > 1.0  # do not consider grains that shrunk or were consumed during simulation
-    growth_ratio = growth_ratio_all[growth_mask]  # only include grains that survived the simulation
-    growth_ratio_avg = growth_ratio.mean()
-
-    # growth ratio ignoring candidate grain
-    growth_ratio_avg_bulk = _masked_mean(growth_ratio_all[np.logical_and(growth_mask, not_candidate_mask)])
-
-    candidate_area_fraction = grain_sizes[-1, candidate_idx] / total_area
-    growth_final_average_size = grain_sizes[-1, growth_mask].mean()
-    growth_final_average_size_bulk = grain_sizes[-1, np.logical_and(growth_mask, not_candidate_mask)]
-
-    agg_bool = final_candidate_size / final_average_size > 3
-
-    initial_u, initial_c = np.unique(grain_labels, return_counts=True)
-    initial_stats = {}
-    final_stats = {}
-    for t in range(3):
-        if t not in list(initial_u):  # sometimes one grain type does not appear. force all types (candidate,
-                                      # high, low mobility) to appear in u
-            initial_u = np.concatenate([initial_u, [t]], axis=0)
-            initial_c = np.concatenate([initial_c, [0]], axis=0)
-    for u, c in zip(initial_u, initial_c):  # separate grains by type (red/blue/white)
-        init_mask = grain_labels == u
-        initial_stats['type_{}'.format(u)] = {
-            'count': c,
-            'average_size': _masked_mean(grain_sizes[0, init_mask]),
-            'area_fraction': grain_sizes[0, init_mask].sum() / total_area}
-
-        final_mask = np.logical_and(init_mask, mask)  # select grains of correct type and still exist at
-                                                      # end of simulation (ie haven't been consumed)
-        final_growth_mask = np.logical_and(init_mask, growth_mask) # select only grains of correct type that
-                                                                   # grew during simulation
-
-        final_stats['type_{}'.format(u)] = {
-            'count': final_mask.sum(),
-            'average_size': _masked_mean(grain_sizes[-1, final_mask]),
-            'avg_growth_ratio': _masked_mean(growth_ratio_all[final_mask]),
-            'area_fraction': grain_sizes[-1, final_mask].sum() / total_area,
-            # same statistics as above but only include grains that grew during simulation
-            'grow_count': final_growth_mask.sum(),
-            'grow_average_size': _masked_mean(grain_sizes[-1, final_growth_mask]),
-            'grow_avg_growth_ratio': _masked_mean(growth_ratio_all[final_growth_mask]),
-        }
-
-    results = {'initial_average_size': initial_average_size,
-               'initial_candidate_size': initial_candidate_size,
-               'final_average_size': final_average_size,
-               'final_candidate_size': final_candidate_size,
-               'final_candidate_area_fraction': candidate_area_fraction,
-               'candidate_growth_ratio': growth_ratio_all[candidate_idx],
-               'growth_ratio_avg': growth_ratio_avg,
-               'growth_ratio_avg_bulk': growth_ratio_avg_bulk,
-               'agg_bool': agg_bool,
-               'initial_stats': initial_stats,
-               'final_stats': final_stats,
-               'grain_ids': {'type_0': 'candidate grain (white)',
-                             'type_1': 'low mobility (blue)',
-                             'type_2': 'high mobility (red)'},
-               'grain_sizes': grain_sizes,
-               'timesteps': timesteps,
-               'grain_labels': grain_labels}
-
-    return results
-
-
-## TODO add node and edge features
+# TODO add node and edge features
 def create_graph(root):
     """
     Read the SPPARKS meso input/output files and build a graph of the data.
@@ -343,6 +247,8 @@ def _roll_img(img, i):
 
     return img_roll
 
+
+# TODO add metadata separate from features?
 class Graph(nx.DiGraph):
     """
     Wraps networkx.DiGraph to add support for graph level features and export to pytorch geometric (pyg)
@@ -373,8 +279,34 @@ class Graph(nx.DiGraph):
         self._root = r
 
     def to_pyg_dataset(self):
-        # TODO implement this
-        pass
+        """
+        Export graph to torch_geometric dataset.
+
+        Note that only features are exported. Labels are subjective
+        are therefore determined externally (ie data.y must be set later.)
+
+        Returns
+        -------
+
+        """
+        import torch
+        from torch_geometric.data import Data
+
+        nd = self.to_numpydict()
+
+        # torch_geometric uses 2 x N, not N x 2 edgelist
+        edges = torch.tensor(nd['edge_list'].T, dtype=torch.long)
+
+        # copy node and edge features from numpydict as-is
+        node_features = torch.tensor(nd['node_features'], dtype=torch.double)
+        edge_attr = torch.tensor(nd['edge_features'], dtype=torch.double)
+
+        # for now, mask selects candidate grain only
+        mask = torch.BoolTensor([self.nodes[n]['mobility_label'][0] == 1. for n in self.nodes])
+
+        d = Data(x=node_features, edge_index=edges, edge_attr=edge_attr, mask=mask)
+
+        return d
 
     def to_dgl_dataset(self):
         # TODO implement this
@@ -385,15 +317,121 @@ class Graph(nx.DiGraph):
         """
         returns edge list, node features, edge features, graph features
         """
-        pass
+        nd = {}
 
-    def to_json(self):
-        # TODO implement this
-        pass
+        nd['edge_list'] = np.asarray(self.edges)
 
-    def from_json(self):
-        # TODO implement this
-        pass
+        #  id of first node and edges
+        n0 = next((x for x in self.nodes))
+        e0 = next((x for x in self.edges))
+
+        # names of features for nodes and edges
+        # note that single labels may correspond to multiple values (ie unit vector has 2 components for edges)
+        node_feat_ids = sorted(self.nodes[n0].keys())
+        edge_feat_ids = sorted(self.edges[e0].keys())
+
+        # node features
+        node_feat = []
+        for n in self.nodes:
+            node_feat.append(np.concatenate([self.nodes[n][f] for f in node_feat_ids]))
+        node_feat = np.asarray(node_feat)
+
+        edge_feat = []
+        for e in self.edges:
+            edge_feat.append(np.concatenate([self.edges[e][f] for f in edge_feat_ids]))
+        edge_feat = np.asarray(edge_feat)
+
+        nd['node_features'] = node_feat
+        nd['edge_features'] = edge_feat
+
+        nd['node_feature_ids'] = node_feat_ids
+        nd['edge_feature_ids'] = edge_feat_ids
+        # TODO add graph features, normalization, split into continuous vs categorical?
+
+        return nd
+
+    def to_json(self, path):
+        """
+        Saves graph data to json file. Can be loaded with graph.from_json(path).
+
+        Parameters
+        ----------
+        path: str or Path object
+            Path to save data to
+        """
+
+        nd = {}
+
+        # add nodes
+        nd['nodes'] = {n: self.nodes[n] for n in self.nodes}
+
+        # add edges
+        nd['edges'] = {e: self.edges[e] for e in self.edges}
+
+        # add graph level features
+        nd['graph_attr'] = self.graph_attr
+
+        # add path
+        nd['path'] = self.root
+
+        jd = DictTransformer.to_jsondict(nd)
+
+        with open(path, 'w') as f:
+            json.dump(jd, f,)
+
+    @staticmethod
+    def from_json(path):
+        r"""
+        Loads data from json file into Graph object.
+
+        Parameters
+        ----------
+        path: str or Path object
+            path to graph data stored as json (from Graph().to_json())
+
+        Returns
+        -------
+        g: Graph object
+            Graph with data loaded from path
+
+        """
+        g = Graph()
+        with open(path, 'r') as f:
+            jd = json.load(f)
+
+        nd = DictTransformer.from_jsondict(jd)
+
+        # add nodes and node features
+        g.add_nodes_from(((node, attr) for node, attr in nd['nodes'].items()))
+
+        # add edges and edge features
+        g.add_edges_from(((*edge, attr) for edge, attr in nd['edges'].items()))
+
+        # add graph attributes
+        g.graph_attr = nd['graph_attr']
+
+        # file root
+        g.root = nd['path']
+
+        return g
+
+    @staticmethod
+    def from_spparks_out(path):
+        r"""
+        Create graph from raw outputs from spparks.
+
+        Parameters
+        ----------
+        path: str or Path object
+            path to directory containing  initial.dream3d and stats.h5
+
+        Returns
+        -------
+        g: Graph object
+            Extracted graph from data
+        """
+        # TODO custom features
+        return create_graph(path)
 
     # def __repr__(self):
     #     # TODO implement this
@@ -402,3 +440,115 @@ class Graph(nx.DiGraph):
     def copy(self):
         # TODO implement this
         pass
+
+
+class DictTransformer:
+
+    @staticmethod
+    def to_jsondict(nd):
+        """
+        Converts a dictionary containing numpy arrays to a format that can be saved with json.dump()
+
+        Parameters
+        ----------
+        nd: dict
+            dictionary that may contain numpy arrays.
+
+        Returns
+        -------
+        jd: dict
+            json-formatted dict that can be saved with json.dump().
+        """
+        jd = {}
+        for k, v in nd.items():
+            # keys for json must be one of following format
+            if type(k) not in (str, int, float, bool, None):
+                k = str(k)
+
+
+            t = type(v)
+            if t == dict:  # if v is dict, recursively apply method to cover all k-v pairs in sub-dictionaries
+                jd[k] = DictTransformer.to_jsondict(v)
+            elif t == np.ndarray:  # if v is array, convert to list so it's compatible with json
+                jd[k] = v.tolist()
+            elif isinstance(v, PurePath):  # path object, note we check v and not t
+                jd[k] = str(v)
+            else:  # otherwise, store v as-is
+                jd[k] = v
+
+        return jd
+
+    @staticmethod
+    def from_jsondict(jd):
+        """
+        Convert json-compatible dictionary into dictionary containing numpy arrays.
+
+        Applies the following changes:
+            Where applicable, converts keys (always str for json) to numeric, and
+            Converts numeric lists to arrays (json always stores list-like objects as lists)
+
+        Parameters
+        ----------
+        jd: dict
+            json-formatted dictionary
+
+        Returns
+        -------
+        nd: dict
+            numpy-formatted dictionary with keys that may be numeric and values that may be ndarrays.
+        """
+        nd = {}
+        for k, v in jd.items():
+            k = _str_to_numeric(k)
+            t = type(v)
+            if t == dict:
+                # if v is a dict, recursively apply method to cover all k-v pairs in sub-dictionaries
+                nd[k] = DictTransformer.from_jsondict(v)
+            elif t == list:  # list or array
+                arr = np.asarray(v)
+                if np.issubdtype(arr.dtype, np.number):  # array is numeric
+                    nd[k] = arr
+                else:  # array is not numeric, keep item as a list
+                    nd[k] = v
+            elif t == str and '/' in v:  # object appears to be a path
+                nd[k] = Path(v)
+            else:  # other type, leave v as-is
+                nd[k] = v
+
+        return nd
+
+
+def _str_to_numeric(s):
+    """
+    Convert string s to numeric value, if applicable.
+
+    Necessary for reading json dicts (keys always strings) back to consistent format for graph
+    (ie keys for node id's are ints)
+
+    Parameters
+    ----------
+    s: str
+        string
+
+    Returns
+    -------
+    int, float, tuple(int, int), or str
+        converted value.
+
+    """
+    try:  # case 1: s is integer (ie '3')
+        return int(s)
+    except ValueError:
+        try:  # case 2 s is float (ie '3.5')
+            return float(s)
+        except ValueError:
+            try:  # case 3 s is a tuple of integers- like from an edge list (ie '(3, 5)')
+                return tuple(int(x) for x in s.strip('()').split(', '))
+            except:  # case 4 s is a path
+                return s
+
+if __name__ == "__main__":
+    p2 = Path('/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/SPPARKS_simulations/candidate-grains/2021_01_04_01_06_candidate_grains_master/spparks_results/run_11')
+    assert p2.exists()
+    g3 = Graph.from_spparks_out(p2)
+    g3.to_json('test_debug.json')

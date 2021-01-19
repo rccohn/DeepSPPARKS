@@ -1,0 +1,17 @@
+pip:
+    numpy
+    scipy
+    matplotlib
+    scikit-image
+    seaborn
+    networkx
+    graphviz
+    jupyterlab
+
+conda:
+    xeus-python notebook
+
+other:
+    torch_geometric and other its dependencies
+    jupyter debugger- xeus-python, nodejs, labextension debugger 
+

@@ -23,7 +23,7 @@ def compute_node_features(mask, mob, degree):
     features = skimage.measure.regionprops_table(mask.astype(np.uint8), properties=props)
 
     features['mobility_label'] = temp
-    features['degree'] = degree
+    features['degree'] = np.array([degree])
 
     return features
 
@@ -49,11 +49,9 @@ def compute_edge_features(labels, src, target):
     centroid_source = np.mean(where_s, axis=1)
     centroid_target = np.mean(where_t, axis=1)
 
-
-
     # centeroid to centroid distance, squeezed because there is only 1 point
-    edge_length = float(cdist(centroid_source[np.newaxis,:],
-                        centroid_target[np.newaxis,:]))
+    edge_length = np.array([float(cdist(centroid_source[np.newaxis, :],
+                        centroid_target[np.newaxis, :]))])
 
     # unit vector pointing from target to source (r,c coords)
     # (for directed graphs, neighborhood of source is defined by edges from target to source)
@@ -81,7 +79,7 @@ def compute_edge_features(labels, src, target):
     cd = cdist(where_se, where_te)
     n_bound_1 = (cd.min(axis=0) == 1.0).sum()
     n_bound_2 = (cd.min(axis=1) == 1.0).sum()
-    n_bound = max(n_bound_1, n_bound_2)
+    n_bound = np.array([max(n_bound_1, n_bound_2)])
 
     features = {'length': edge_length,
                 'unit_vector': v,
