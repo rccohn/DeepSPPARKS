@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from skimage.morphology import binary_dilation
 import graphviz  # https://pypi.org/project/graphviz/
 from pathlib import Path, PurePath
-
+from src.image import _roll_img
 import src.graph_features as gf
 
 
@@ -127,7 +127,8 @@ def create_graph(root):
 
     Returns
     -----------
-    ?
+    G: Graph object
+        graph where nodes are grains, edges are boundaries between grains.
     """
     root = Path(root)  # forces root to be path object
     initfile = root / 'initial.dream3d'
@@ -183,69 +184,6 @@ def _masked_mean(x):
         mean of x if x is not empty, or None if x is empty
     """
     return np.mean(x) if len(x) else None
-
-
-def _roll_img(img, i):
-    """
-    Roll image *img* such that grain *i* is approximately centered.
-
-    This is needed to account for periodic boundary conditions, which may cause an individual grain
-    or grain's neighbor to be wrapped around an edge of the image. Wrapping to the center ensures that small grain
-    neighborhoods will be centered and not cross the edges. Note that this only applies to small grain neighborhoods
-    (ie the initial grain structure.) For grains that dominate the size of the image (ie after abnormal growth occurs,)
-    then a more sophisticated approach (ie using np.where() to get coords and then operating on coords directly) will
-    be needed, but this is likely not needed for determining the graph structure (ie initial grains are small,) and is
-    not compatible with functions that operate on binary masks (ie skimage regionprops.)
-
-    Parameters
-    ----------
-    img: ndarray
-        r x c integer numpy array where each element is the grain ID corresponding to the pixel
-
-    i: int
-        index of grain in *img* to center
-
-    Returns
-    -------
-    img_roll: ndarray
-        same format as *img* with coordinates rolled to center grain *i*
-    """
-
-    # center indices of image
-    r, c = [x//2 for x in img.shape]
-
-    # coordinates of grain of interest
-    rows, cols = np.where(img == i)
-
-    # for both row and column indices:
-
-    # if mask is only 1 pixel, roll it to center index directly
-
-    # if mask has more than 1 pixels, look for discontinuities (difference in coordinates between consecutive
-    # pixels in mask is larger than some threshold ie 10px)
-
-    # if a discontinuity is found: roll image by half of its coords (will approximately land in center)
-    # (later this could be improved by finding weighted average location of pixels)
-    # if one is not found, roll to center by the difference in center and mean coordinate of mask
-
-
-    if len(rows) == 1:  # mask is only 1 pixel, can't take difference in coords to detect split
-        row_shift = r - rows[0]
-    elif (rows[1:] - rows[:-1]).max() > 10:
-        row_shift = r
-    else:
-        row_shift = int(r - rows.mean())
-
-    if len(cols) == 1:
-        col_shift = c - cols[0]
-    elif (cols[1:] - cols[:-1]).max() > 10:
-        col_shift = c
-    else:
-        col_shift = int(c - cols.mean())
-
-    img_roll = np.roll(img, (row_shift, col_shift), axis=(0, 1))
-
-    return img_roll
 
 
 # TODO add metadata separate from features?
