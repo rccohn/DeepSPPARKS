@@ -486,7 +486,11 @@ def _str_to_numeric(s):
                 return s
 
 if __name__ == "__main__":
-    p2 = Path('/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/SPPARKS_simulations/candidate-grains/2021_01_04_01_06_candidate_grains_master/spparks_results/run_11')
-    assert p2.exists()
-    g3 = Graph.from_spparks_out(p2)
-    g3.to_json('test_debug.json')
+    p2 = Path('/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/SPPARKS_simulations/candidate-grains/2021_01_04_01_06_candidate_grains_master/spparks_results/')
+#   assert p2.exists()
+#    runs = list(p2.glob('*run*'))[:10]
+#    from multiprocessing import Pool
+#    def#
+#    with Pool(4) as p:
+#        graphs = p.map_async(Graph.from_spparks_out(p2))
+#    graphs

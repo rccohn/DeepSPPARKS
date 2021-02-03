@@ -3,7 +3,7 @@ import numpy as np
 from pathlib import Path
 from skimage.morphology import binary_dilation
 
-def img_from_output(root, enhance_edges=True):
+def img_from_output(root, enhance_edges=True,):
     r"""
     Read SPPARKS meso input/output files and build an image where the candidate
     grain is centered in the matrix.
