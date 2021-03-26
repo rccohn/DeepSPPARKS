@@ -8,10 +8,10 @@ import graphviz  # https://pypi.org/project/graphviz/
 from pathlib import Path, PurePath
 from src.image import _roll_img
 import src.graph_features as gf
+import pycocotools.mask as RLE
+import matplotlib.pyplot as plt
 
-
-def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_features=None, compute_edge_features=None,
-                 compute_graph_features=None):
+def img_to_graph(img, grain_labels):
     """
     Converts array of grain ids to a graph of connected grains.
 
@@ -30,10 +30,13 @@ def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_feature
         n_grain element array where values at index i indicate the class of grain with label i.
           Values should be 0, 1, or 2 and correspond to the grain's class (candidate, high, low mobility, respectively)
 
+    NOTE: THESE ARE NOT CURRENTLY USED. TODO UPDATE DOCSTRING. Node/edge/graph features can be updated after graph
+                                                                is created.
     compute_node_features, compute_edge_features, compute_graph_features: callable or None
         if None- only the graph topology/connectivity is determined
         else- functions that take the image, neighbor list, and external features as inputs  # TODO clarify format
 
+    NOTE: THESE ARE NOT CURRENTLY USED. TODO UPDATE DOCSTRING.
     external_features: dictionary
         contains ## TODO make format consistent for graph features
         if None- external features are not incorporated in computing node and edge features
@@ -58,17 +61,8 @@ def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_feature
 
     """
 
-    if compute_node_features is None:
-        compute_node_features = gf.compute_node_features
-
-    if compute_edge_features is None:
-        compute_edge_features = gf.compute_edge_features
-
-    if compute_graph_features is None:
-        compute_graph_features = gf.compute_graph_features
 
 
-    graph_features = compute_graph_features(img, grain_labels, grain_sizes, timesteps)
 
     G = Graph()  # simple, undirected graph
 
@@ -96,23 +90,21 @@ def img_to_graph(img, grain_labels, grain_sizes, timesteps, compute_node_feature
         edges = np.stack((neighbors, source_idx),
                          axis=0).T  # format: [[source_idx, neighbor_1_idx], [source_idx, neighbor_2_idx], ...]
 
-        # node and edge features computed from immage, edge list (source node can be inferred from this), and pre-computed features
-        node_features = compute_node_features(grain_mask, grain_labels[idx], len(neighbors))  # dictionary of features for the node
+        # node and edge features computed from image, edge list (source node can be inferred from this)
+        node_features = gf.compute_node_features(grain_mask, grain_labels[idx])  # dictionary of features for the node
 
         G.add_node(idx, **node_features)
 
         # list of tuples of the format (source_idx, target_idx, {**features})
-        ebunch = [(*e, compute_edge_features(img, *e)) for e in edges]
-
+        ebunch = [(*e, gf.compute_edge_features(img_roll, *e)) for e in edges]
 
         G.add_edges_from(ebunch)
-
-    G.graph_attr = graph_features
 
     return G
 
 
 # TODO add node and edge features
+# TODO separate graph metadata from graph level features?
 def create_graph(root):
     """
     Read the SPPARKS meso input/output files and build a graph of the data.
@@ -147,6 +139,9 @@ def create_graph(root):
     # shifted by 1 so pixel ids start at 0
     grain_ids = np.asarray(sv['CellData']['FeatureIds']) - 1
 
+    # metadata
+    metadata = {}
+
     # grain_labels contains the class of each grain.
     # The row index corresponds to the grain in grain_ids (also shifted by 1 for consistency- the first row is zeros
     # to account for how the first grain id is 1- ie there is no 0 index, so this is removed)
@@ -157,16 +152,22 @@ def create_graph(root):
     # Rather than keeping the entire vector, we can get the label by simply counting the number of non-zero elements
     #  and subtract 1 for zero-indexing
     # 2 indicates high mobility, 1 indicates low-mobility, 0 indicates candidate grain
-    grain_labels = np.asarray(sv['CellFeatureData']['AvgQuats'])[1:]
-    grain_labels = (grain_labels > 0).sum(1) - 1
+    grain_labels_raw = np.asarray(sv['CellFeatureData']['AvgQuats'])[1:]
+    # preserve original mobility labels
+
+    # reduced representation of mobility- store as single value instead of vector of 3 elements
+    grain_labels = (grain_labels_raw > 0).sum(1) - 1
 
     timesteps = np.asarray(stats['time'])
     # again, the first column is all 0's due to original grain indexing starting at 1
     # shift by one element to account for zero-indexing
     grain_sizes = np.asarray(stats['grainsize'])[:, 1:]
 
-    G = img_to_graph(grain_ids, grain_labels, grain_sizes, timesteps)
+    #TODO fix inconsistencies in naming ie grain labels vs grain ids, especially for compute_metadata()
+    G = img_to_graph(grain_ids, grain_labels)
     G.root = root.absolute()
+    G.metadata = gf.compute_metadata(grain_ids, grain_labels_raw, grain_sizes, timesteps)
+    G.targets = gf.compute_targets(grain_labels, grain_sizes)
     return G
 
 
@@ -195,8 +196,10 @@ class Graph(nx.DiGraph):
 
     def __init__(self):
         super().__init__()
-        self._graph_attributes = None
-        self._root = None
+        self._graph_attributes = None  # graph level attributes
+        self._root = None  # path to file
+        self._metadata = None  # info about the original graph itself
+        self._targets = None  # labels, regression outputs, etc
 
     @property
     def graph_attr(self):
@@ -204,8 +207,26 @@ class Graph(nx.DiGraph):
 
     @graph_attr.setter
     def graph_attr(self, ga):
-        assert type(ga) == dict
+        assert type(ga) in (dict, type(None)), 'graph_attr must be dict or None!'
         self._graph_attributes = ga
+
+    @property
+    def metadata(self):
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, md):
+        assert type(md) == dict
+        self._metadata = md
+
+    @property
+    def targets(self):
+        return self._targets
+
+    @targets.setter
+    def targets(self, y):
+        assert type(y) == dict
+        self._targets = y
 
     @property
     def root(self):
@@ -309,6 +330,9 @@ class Graph(nx.DiGraph):
         # add graph level features
         nd['graph_attr'] = self.graph_attr
 
+        # add metadata
+        nd['metadata'] = self.metadata
+
         # add path
         nd['path'] = self.root
 
@@ -351,7 +375,59 @@ class Graph(nx.DiGraph):
         # file root
         g.root = nd['path']
 
+        for n in g.nodes:
+            g.nodes[n]['rle']['counts'] = bytes(g.nodes[n]['rle']['counts'], 'utf-8')
+
+        metadata = {}
+        nd = nd['metadata']
+        metadata['img_size'] = tuple(nd['img_size'])
+        metadata['timesteps'] = np.array(nd['timesteps'])
+        metadata['mobility_vectors'] = nd['mobility_vectors']
+        metadata['grain_sizes'] = np.array(nd['grain_sizes'])
+        metadata['center_id'] = nd['center_id']  # id of grain located at center of image
+        metadata['center_bounds_rrcc'] = np.array(nd['center_bounds_rrcc'])
+        g.metadata = metadata
+
+
+
+
         return g
+
+    def to_image(self):
+        """
+        turn graph back into image from spparks output
+        """
+        size = self.metadata['img_size']
+        img = np.zeros(size, np.int) - 1  # -1 to differentiate between grain 0 and unfilled pixels
+
+        # place center grain on image first
+        cid = self.metadata['center_id']
+        rle = self.nodes[cid]['rle']
+        center = RLE.decode(rle)
+
+        where = np.stack(np.where(center), axis=1)
+        wmin = np.min(where, axis=0)
+
+        shift1 = -wmin  # to top left corner of grain bbox in bitmask
+        shift2 = G.metadata['center_bounds_rrcc'][::2]  # center of img
+
+        shift = shift1 + shift2
+
+        newcoords = (where + shift).T
+
+        img[newcoords[0], newcoords[1]] = cid
+        visited = {x: False for x in self.nodes}
+        visited[cid] = True
+        img = _add_neighbors_to_img(self, img, cid, visited)
+
+        img = _roll_img(img, cid)  # not sure why this is needed but rolling the
+                                   # image to its final position doesn't work without it
+
+        where = np.stack(np.where(img == cid), axis=1).min(axis=0)
+        shift = shift2 - where
+        img = np.roll(img, shift, axis=(0, 1))
+        assert not np.any(img == -1), 'error in reconstructing image, some pixels not filled'
+        return img
 
     @staticmethod
     def from_spparks_out(path):
@@ -379,6 +455,11 @@ class Graph(nx.DiGraph):
         # TODO implement this
         pass
 
+    def to_spparks_out(self):
+        # TODO finish this to verify computations perform as expected
+        # compare graid_ids, mobilities, timesteps, grain_sizes, etc to
+        # original hd5 file
+        pass
 
 class DictTransformer:
 
@@ -409,12 +490,53 @@ class DictTransformer:
                 jd[k] = DictTransformer.to_jsondict(v)
             elif t == np.ndarray:  # if v is array, convert to list so it's compatible with json
                 jd[k] = v.tolist()
+
+            elif t in (tuple, list, set):
+                jd[k] = DictTransformer.to_jsonlist(v)
+            elif t == bytes:
+                jd[k] = v.decode('utf-8')
             elif isinstance(v, PurePath):  # path object, note we check v and not t
                 jd[k] = str(v)
             else:  # otherwise, store v as-is
                 jd[k] = v
 
         return jd
+
+    @staticmethod
+    def to_jsonlist(x):
+        """
+        Convert list to a json-compatible list. Iterates through items
+        in the list, and applies the following changes:
+            converts tuples, ndarrays, sets to list
+            converts dicts to jsondict (see to_jsondict)
+
+        Parameters
+        ----------
+        x: list-like
+            list of values to iterae over
+
+        Returns
+        --------
+        x_json: list
+            json-compatible list
+
+        """
+        x_json = []
+        for item in x:
+            t = type(item)
+            if t == dict:
+                x_json.append(DictTransformer.to_jsondict(item))
+
+            elif t == np.ndarray:
+                x_json.append(item.tolist())
+
+            elif t in (tuple, list, set):
+                x_json.append(DictTransformer.to_jsonlist(item))
+
+            else:
+                x_json.append(item)
+
+        return x_json
 
     @staticmethod
     def from_jsondict(jd):
@@ -439,22 +561,39 @@ class DictTransformer:
         for k, v in jd.items():
             k = _str_to_numeric(k)
             t = type(v)
-            if t == dict:
-                # if v is a dict, recursively apply method to cover all k-v pairs in sub-dictionaries
-                nd[k] = DictTransformer.from_jsondict(v)
-            elif t == list:  # list or array
-                arr = np.asarray(v)
-                if np.issubdtype(arr.dtype, np.number):  # array is numeric
-                    nd[k] = arr
-                else:  # array is not numeric, keep item as a list
-                    nd[k] = v
-            elif t == str and '/' in v:  # object appears to be a path
-                nd[k] = Path(v)
-            else:  # other type, leave v as-is
+            if k == 'metadata':
                 nd[k] = v
+            else:
+                if t == dict:
+                    # if v is a dict, recursively apply method to cover all k-v pairs in sub-dictionaries
+                    nd[k] = DictTransformer.from_jsondict(v)
+                elif t == list:  # list or array
+                    if type(v[0]) == list:
+                        if all([len(x) == len(v[0]) for x in v]):
+                            nd[k] = np.array(v)
+                        else:
+                            if all([type(x) in (int, float, bool) for x in v]):
+                                nd[k] = np.array(v)
+                            else:
+                                nd[k] = DictTransformer.to_jsonlist(v)
+                    else:
+                        nd[k] = DictTransformer.to_jsonlist(v)
+
+                    arr = np.array(v)
+                    if np.issubdtype(arr.dtype, np.number):  # array is numeric
+                        nd[k] = arr
+                    else:  # array is not numeric, keep item as a list
+                        nd[k] = v
+                elif t == str and '/' in v:  # object appears to be a path
+                    nd[k] = Path(v)
+                else:  # other type, leave v as-is
+                    nd[k] = v
 
         return nd
 
+    @staticmethod
+    def from_jsonlist(x):
+        pass
 
 def _str_to_numeric(s):
     """
@@ -485,12 +624,81 @@ def _str_to_numeric(s):
             except:  # case 4 s is a path
                 return s
 
+
+def _add_node_to_img(g, img, src, target):
+    """
+    img: image to put grains on
+    g: graph
+    src, target: nodes in graph
+        src should already be on graph, target should be a neighbor of src
+        (ie the edge (src, target) should exist)
+    """
+    # note- need to handle wrapped grains later
+    xcenter = np.mean(np.where(img == src), axis=1)  # centroid of source grain
+    edge = g.edges[(src, target)]
+
+    bitmask = RLE.decode(g.nodes[target]['rle'])
+    shift1 = -np.mean(np.where(bitmask), axis=1)  # top left of bitmask to center of grain
+    shift2 = xcenter - (edge['unit_vector'] * edge['length'])
+    coords = np.round((np.stack(np.where(bitmask), axis=1) + shift1 + shift2)).astype(np.int).T
+    #coords = coords % np.reshape(img.shape, (2, 1))
+
+    img[coords[0], coords[1]] = target
+
+    return img
+
+# TODO this is a breadth-first search problem
+def _add_neighbors_to_img(g, img, src, visited):
+    neighborhoods = [(src, [n for n in g.neighbors(src)])]
+    for n in neighborhoods[0][1]:  # all of these nodes will be visited
+        visited[n] = True
+
+    i = 0
+
+
+    while neighborhoods:  # continue while there are still neighbors
+        edgelist = neighborhoods.pop(0)  # (src, [n for n in g.neighbors(src)] if not visited[n])
+        src = edgelist[0]
+        img = _roll_img(img, src)  # avoid issues from periodic boundary conditions by always working at center of image
+        while edgelist[1]:
+            i += 1
+
+            n = edgelist[1].pop(0)  # get target node
+
+            img = _add_node_to_img(g, img, src, n,)  # add target node to graph
+
+            new_edgelist = (n, [x for x in g.neighbors(n) if not visited.get(x)])
+
+            for node in new_edgelist[1]:
+                visited[node] = True # all of these nodes will be visited
+
+            if new_edgelist[1]:
+                neighborhoods.append(new_edgelist)
+
+
+    return img
+
+
 if __name__ == "__main__":
-    p2 = Path('/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/SPPARKS_simulations/candidate-grains/2021_01_04_01_06_candidate_grains_master/spparks_results/')
-#   assert p2.exists()
+    p2 = Path('/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/'
+     'SPPARKS_simulations/candidate-grains/2020_12_26_21_38_candidate_grains_master/spparks_results/run_472')
+    assert p2.exists()
+    json_path = Path('..', 'data', 'temp', 'test_graph_2.json')
+    if not json_path.is_file():
+        G = Graph.from_spparks_out(p2)
+
+        G.to_json(json_path)
+    else:
+        G = Graph.from_json(json_path)
+    img = G.to_image()
+
 #    runs = list(p2.glob('*run*'))[:10]
 #    from multiprocessing import Pool
 #    def#
 #    with Pool(4) as p:
 #        graphs = p.map_async(Graph.from_spparks_out(p2))
 #    graphs
+
+    plt.imshow(img, cmap='jet')
+    plt.colorbar()
+    plt.show()
