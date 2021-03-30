@@ -103,8 +103,6 @@ def img_to_graph(img, grain_labels):
     return G
 
 
-# TODO add node and edge features
-# TODO separate graph metadata from graph level features?
 def create_graph(root):
     """
     Read the SPPARKS meso input/output files and build a graph of the data.
@@ -187,17 +185,17 @@ def _masked_mean(x):
     return np.mean(x) if len(x) else None
 
 
-# TODO add metadata separate from features?
 class Graph(nx.DiGraph):
     """
     Wraps networkx.DiGraph to add support for graph level features and export to pytorch geometric (pyg)
     and dgl datasets.
     """
-
+    # TODO to further reduce graph size, make node and edge features single list so you don't have to store key
+    #     value pairs for every node and edge
     def __init__(self):
         super().__init__()
         self._graph_attributes = None  # graph level attributes
-        self._root = None  # path to file
+        self._root = None  # path to file, TODO move this to metadata
         self._metadata = None  # info about the original graph itself
         self._targets = None  # labels, regression outputs, etc
 
@@ -228,6 +226,7 @@ class Graph(nx.DiGraph):
         assert type(y) == dict
         self._targets = y
 
+    # TODO move this to metadata
     @property
     def root(self):
         return self._root
@@ -237,40 +236,58 @@ class Graph(nx.DiGraph):
         assert type(r) is str or isinstance(r, Path)
         self._root = r
 
-    def to_pyg_dataset(self):
+    def pyg_edgelist(self):
         """
-        Export graph to torch_geometric dataset.
-
-        Note that only features are exported. Labels are subjective
-        are therefore determined externally (ie data.y must be set later.)
+        Parameters
+        ----------
+        None
 
         Returns
-        -------
-
+        ---------
+        edgelist: ndarray
+         edgelist in pyg format
         """
-        import torch
-        from torch_geometric.data import Data
+        return np.asarray(sorted(self.edges)).T
 
-        nd = self.to_numpydict()
 
-        # torch_geometric uses 2 x N, not N x 2 edgelist
-        edges = torch.tensor(nd['edge_list'].T, dtype=torch.long)
 
-        # copy node and edge features from numpydict as-is
-        node_features = torch.tensor(nd['node_features'], dtype=torch.double)
-        edge_attr = torch.tensor(nd['edge_features'], dtype=torch.double)
+    # TODO not sure if this is needed, might be better to convert to datasets externally,
+    # to allow for different features and conventions.
+    # also note G.nodes is not sorted.
+    # def to_pyg_dataset(self):
+    #     """
+    #     Export graph to torch_geometric dataset.
+    #
+    #     Note that only features are exported. Labels are subjective
+    #     are therefore determined externally (ie data.y must be set later.)
+    #
+    #     Returns
+    #     -------
+    #
+    #     """
+    #     import torch
+    #     from torch_geometric.data import Data
+    #
+    #     nd = self.to_numpydict()
+    #
+    #     # torch_geometric uses 2 x N, not N x 2 edgelist
+    #     edges = torch.tensor(nd['edge_list'].T, dtype=torch.long)
+    #
+    #     # copy node and edge features from numpydict as-is
+    #     node_features = torch.tensor(nd['node_features'], dtype=torch.double)
+    #     edge_attr = torch.tensor(nd['edge_features'], dtype=torch.double)
+    #
+    #     # for now, mask selects candidate grain only
+    #     mask = torch.BoolTensor([self.nodes[n]['mobility_label'][0] == 1. for n in sorted(self.nodes)])
+    #
+    #     d = Data(x=node_features, edge_index=edges, edge_attr=edge_attr, mask=mask)
+    #
+    #     return d
 
-        # for now, mask selects candidate grain only
-        mask = torch.BoolTensor([self.nodes[n]['mobility_label'][0] == 1. for n in self.nodes])
-
-        d = Data(x=node_features, edge_index=edges, edge_attr=edge_attr, mask=mask)
-
-        return d
-
-    def to_dgl_dataset(self):
-        # TODO implement this
-        pass
-
+    # def to_dgl_dataset(self):
+    #     # TODO implement this
+    #     pass
+    #TODO self.nodes and self.edges ARE UNSORTED...
     def to_numpydict(self):
         # TODO implement this
         """
@@ -388,9 +405,6 @@ class Graph(nx.DiGraph):
         metadata['center_bounds_rrcc'] = np.array(nd['center_bounds_rrcc'])
         g.metadata = metadata
 
-
-
-
         return g
 
     def to_image(self):
@@ -409,7 +423,7 @@ class Graph(nx.DiGraph):
         wmin = np.min(where, axis=0)
 
         shift1 = -wmin  # to top left corner of grain bbox in bitmask
-        shift2 = G.metadata['center_bounds_rrcc'][::2]  # center of img
+        shift2 = self.metadata['center_bounds_rrcc'][::2]  # center of img
 
         shift = shift1 + shift2
 
@@ -419,7 +433,6 @@ class Graph(nx.DiGraph):
         visited = {x: False for x in self.nodes}
         visited[cid] = True
         img = _add_neighbors_to_img(self, img, cid, visited)
-
         img = _roll_img(img, cid)  # not sure why this is needed but rolling the
                                    # image to its final position doesn't work without it
 
@@ -427,7 +440,7 @@ class Graph(nx.DiGraph):
         shift = shift2 - where
         img = np.roll(img, shift, axis=(0, 1))
         assert not np.any(img == -1), 'error in reconstructing image, some pixels not filled'
-        return img
+        return img.astype(np.uint16)
 
     @staticmethod
     def from_spparks_out(path):
@@ -447,6 +460,8 @@ class Graph(nx.DiGraph):
         # TODO custom features
         return create_graph(path)
 
+
+
     # def __repr__(self):
     #     # TODO implement this
     #     pass
@@ -459,7 +474,67 @@ class Graph(nx.DiGraph):
         # TODO finish this to verify computations perform as expected
         # compare graid_ids, mobilities, timesteps, grain_sizes, etc to
         # original hd5 file
-        pass
+
+        spparks_dict = {'initial.dream3d': {}, 'stats.h5': {}}
+
+        # shift to_image() by 1 to get ids from 1-N instead of 0-N-1
+        spparks_dict['initial.dream3d']['grain_ids'] = self.to_image() + 1
+
+        # go from integer mobility labels back to the vectors from spparks
+        mob_map = np.stack([self.metadata['mobility_vectors'][f'type_{x}'][0]
+                            for x in range(3)])
+        mobs = mob_map[[self.nodes[i]['mobility_label'] for i in sorted(self.nodes)]]
+        mobs = np.pad(mobs, pad_width=((1, 0), (0, 0)), constant_values=0)
+        spparks_dict['initial.dream3d']['grain_labels'] = mobs
+
+        # stack grain sizes on array of zeros to account for offset (ie grain idx starts at 1)
+        grain_sizes = self.metadata['grain_sizes']
+        grain_sizes = np.pad(grain_sizes, pad_width=((0, 0), (1, 0)), constant_values=0)
+        spparks_dict['stats.h5']['grainsize'] = grain_sizes
+
+        spparks_dict['stats.h5']['time'] = self.metadata['timesteps']
+
+        return spparks_dict
+
+    def validate_with_spparks_outputs(self, root="", verbose=True):
+        """
+        check to make sure all data in graph exactly matches data contained in h5 files
+        """
+        if root == "": # default, read from metadata.root
+            root = self.root
+
+        sd = self.to_spparks_out()
+
+        root = Path(root)  # forces root to be path object
+        initfile = root / 'initial.dream3d'
+        statsfile = root / 'stats.h5'
+
+        assert initfile.is_file(), f'{str(initfile.absolute())} not found!'
+        assert statsfile.is_file(), f'{str(statsfile.absolute())} not found!'
+
+        init = h5py.File(initfile, 'r')
+        stats = h5py.File(statsfile, 'r')
+        sv = init['DataContainers']['SyntheticVolume']
+
+        grain_ids = np.asarray(sv['CellData']['FeatureIds'])
+        grain_labels_raw = np.asarray(sv['CellFeatureData']['AvgQuats'])
+        timesteps = np.asarray(stats['time'])
+        grain_sizes = np.asarray(stats['grainsize'])
+
+        h5d = {'initial.dream3d': {'grain_ids': grain_ids, 'grain_labels': grain_labels_raw},
+               'stats.h5': {'time': timesteps, 'grainsize': grain_sizes}}
+        match = True
+        for k, v in h5d.items():
+            for kk, vv in v.items():
+                match_i = np.all(vv == sd[k][kk])
+                match = match and match_i
+                if verbose:
+                    print("file: {}, key: {}\n\tmatch: {}".format(k, kk, match_i))
+        return match
+
+
+
+
 
 class DictTransformer:
 
@@ -647,21 +722,16 @@ def _add_node_to_img(g, img, src, target):
 
     return img
 
-# TODO this is a breadth-first search problem
 def _add_neighbors_to_img(g, img, src, visited):
     neighborhoods = [(src, [n for n in g.neighbors(src)])]
     for n in neighborhoods[0][1]:  # all of these nodes will be visited
         visited[n] = True
-
-    i = 0
-
 
     while neighborhoods:  # continue while there are still neighbors
         edgelist = neighborhoods.pop(0)  # (src, [n for n in g.neighbors(src)] if not visited[n])
         src = edgelist[0]
         img = _roll_img(img, src)  # avoid issues from periodic boundary conditions by always working at center of image
         while edgelist[1]:
-            i += 1
 
             n = edgelist[1].pop(0)  # get target node
 
@@ -674,7 +744,6 @@ def _add_neighbors_to_img(g, img, src, visited):
 
             if new_edgelist[1]:
                 neighborhoods.append(new_edgelist)
-
 
     return img
 
@@ -690,15 +759,5 @@ if __name__ == "__main__":
         G.to_json(json_path)
     else:
         G = Graph.from_json(json_path)
-    img = G.to_image()
 
-#    runs = list(p2.glob('*run*'))[:10]
-#    from multiprocessing import Pool
-#    def#
-#    with Pool(4) as p:
-#        graphs = p.map_async(Graph.from_spparks_out(p2))
-#    graphs
-
-    plt.imshow(img, cmap='jet')
-    plt.colorbar()
-    plt.show()
+    G.validate_with_spparks_outputs()
