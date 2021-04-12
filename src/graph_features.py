@@ -176,10 +176,52 @@ def compute_targets(grain_ids, grain_sizes):
 
         return targets
 
+def featurizer(g, fedgelist=None, fnode=None, fedge=None, fgraph=None, targets=None):
+    """
+    Takes in graph object as input, and computes node, edge, and graph features, as well
+    as targets for each graph.
+
+    Parameters
+    -----------
+    g: Graph object
+        graph to extract features and targets from
+    fedgelist, fnode, fedge, fgraph, targets: callable or None
+        Function that takes in Graph object as input, and returns the formatted edgelist,
+        node features, edge features, graph features, and targets (outputs,) respectively
+
+        If None, then returns None
+
+    Returns
+    ------------
+    feat: dict
+        dictionary of features with following key-value pairs:
+            'edgelist': 2xn or nx2 array or tensor of formatted values, or None.
+                        Node ids should be ints starting from 0 (ie can be used as indices of feature matrix.)
+                        Edges should also appear in order so edgelist[i] (if edgelist is nx2)
+                        or edgelist[:,i] (if edgelist is 2xn) corresponds to fedge[i] in edge
+                        feature matrix.
+            'fnode': 2d array or tensor of node features, or None
+                     Note: Features are assumed to be sorted, so fnode[i] gives features
+                     for note with index i)
+            'fedge': 2d array or tensor of edge features, or None
+                     Note:assumes features are sorted, so fedge[i] gives features
+                     for edge associated with edge i in edgelist.
+            'fgraph': 1d array or tensor of graph features, or None.
+            'targets': dict, array-like, numeric, or None
+                       Desired output or outputs for graph
+    """
+    # initialize values
+    keys = ('edgelist', 'fnode', 'fedge', 'fgraph', 'targets')
+    feat = {x: None for x in keys}
+
+    for k, f in zip(keys, (fedgelist, fnode, fedge, fgraph, targets)):
+        if f is not None:
+            feat[k] = f(g)
+    return feat
 
 if __name__ == '__main__':
 
-    mask = np.zeros((10,10), np.bool)
+    mask = np.zeros((10, 10), np.bool)
     mask[2:4, 2:4] = True
     mob = 2
 
