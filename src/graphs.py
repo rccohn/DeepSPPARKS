@@ -7,9 +7,9 @@ from skimage.morphology import binary_dilation
 import graphviz  # https://pypi.org/project/graphviz/
 from pathlib import Path, PurePath
 from src.image import _roll_img
-import src.graph_features as gf
-import pycocotools.mask as RLE
-import matplotlib.pyplot as plt
+from src import graph_features as gf
+from pycocotools import mask as RLE
+from copy import deepcopy
 
 def img_to_graph(img, grain_labels):
     """
@@ -60,10 +60,6 @@ def img_to_graph(img, grain_labels):
       (https://www.morganclaypoolpublishers.com/catalog_Orig/samples/9781681737669_sample.pdf)
 
     """
-
-
-
-
     G = Graph()  # simple, undirected graph
 
     # TODO this part is slow, look into parallelizing?
@@ -103,13 +99,13 @@ def img_to_graph(img, grain_labels):
     return G
 
 
-def create_graph(root):
+def create_graph(path):
     """
     Read the SPPARKS meso input/output files and build a graph of the data.
 
     Parameters
     -----------
-    root: string or Path object
+    path: string or Path object
         directory containing 2 files:
             1) initial.dream3d contains pixel map of initial grains (n x m array, each pixel is an
                integer indicating which grain it belongs to)
@@ -120,9 +116,9 @@ def create_graph(root):
     G: Graph object
         graph where nodes are grains, edges are boundaries between grains.
     """
-    root = Path(root)  # forces root to be path object
-    initfile = root / 'initial.dream3d'
-    statsfile = root / 'stats.h5'
+    path = Path(path)  # forces root to be path object
+    initfile = path / 'initial.dream3d'
+    statsfile = path / 'stats.h5'
 
     assert initfile.is_file(), f'{str(initfile.absolute())} not found!'
     assert statsfile.is_file(), f'{str(statsfile.absolute())} not found!'
@@ -152,7 +148,9 @@ def create_graph(root):
     # 2 indicates high mobility, 1 indicates low-mobility, 0 indicates candidate grain
     grain_labels_raw = np.asarray(sv['CellFeatureData']['AvgQuats'])[1:]
     # preserve original mobility labels
-
+    # TODO double check low, high, candidate mobilities against image
+    #  Consider making candidate 2, high mobility 1, low mobility 0
+    #  to make overall mobility more linear
     # reduced representation of mobility- store as single value instead of vector of 3 elements
     grain_labels = (grain_labels_raw > 0).sum(1) - 1
 
@@ -163,50 +161,22 @@ def create_graph(root):
 
     #TODO fix inconsistencies in naming ie grain labels vs grain ids, especially for compute_metadata()
     G = img_to_graph(grain_ids, grain_labels)
-    G.root = root.absolute()
-    G.metadata = gf.compute_metadata(grain_ids, grain_labels_raw, grain_sizes, timesteps)
-    G.targets = gf.compute_targets(grain_labels, grain_sizes)
+    G.metadata = gf.compute_metadata(grain_ids, grain_labels_raw, grain_sizes, timesteps, path.absolute().resolve())
     return G
 
 
-def _masked_mean(x):
-    """Returns mean if list is non-empty, otherwise return None.
-
-    Parameters
-    ----------
-    x: ndarray
-        array of valuse (usually result of masking a larger array to select specific values)
-
-    Returns
-    -------
-    mean: float or None
-        mean of x if x is not empty, or None if x is empty
-    """
-    return np.mean(x) if len(x) else None
-
-
+# TODO modify g.nodes and g.edges properties to return sorted lists?
+#      or add g.nodelist and g.edgelist?
 class Graph(nx.DiGraph):
     """
-    Wraps networkx.DiGraph to add support for graph level features and export to pytorch geometric (pyg)
-    and dgl datasets.
+    Wraps networkx.DiGraph to add support for metadata and some convenient
+    built-in functions.
     """
     # TODO to further reduce graph size, make node and edge features single list so you don't have to store key
     #     value pairs for every node and edge
     def __init__(self):
         super().__init__()
-        self._graph_attributes = None  # graph level attributes
-        self._root = None  # path to file, TODO move this to metadata
-        self._metadata = None  # info about the original graph itself
-        self._targets = None  # labels, regression outputs, etc
-
-    @property
-    def graph_attr(self):
-        return self._graph_attributes
-
-    @graph_attr.setter
-    def graph_attr(self, ga):
-        assert type(ga) in (dict, type(None)), 'graph_attr must be dict or None!'
-        self._graph_attributes = ga
+        self._metadata = {}  # info about the original graph itself
 
     @property
     def metadata(self):
@@ -214,200 +184,65 @@ class Graph(nx.DiGraph):
 
     @metadata.setter
     def metadata(self, md):
-        assert type(md) == dict
+        assert type(md) == dict, 'metada must be a dict object!'
         self._metadata = md
 
+    # TODO update code to use edgelist where applicable (instead of explicitly calling
+    #      [self.edges[e] for e in sorted(self.edges)]
     @property
-    def targets(self):
-        return self._targets
-
-    @targets.setter
-    def targets(self, y):
-        assert type(y) == dict
-        self._targets = y
-
-    # TODO move this to metadata
-    @property
-    def root(self):
-        return self._root
-
-    @root.setter
-    def root(self, r):
-        assert type(r) is str or isinstance(r, Path)
-        self._root = r
-
-    def pyg_edgelist(self):
+    def edgelist(self):
         """
-        Parameters
-        ----------
-        None
-
-        Returns
-        ---------
-        edgelist: ndarray
-         edgelist in pyg format
-        """
-        return np.asarray(sorted(self.edges)).T
-
-
-
-    # TODO not sure if this is needed, might be better to convert to datasets externally,
-    # to allow for different features and conventions.
-    # also note G.nodes is not sorted.
-    # def to_pyg_dataset(self):
-    #     """
-    #     Export graph to torch_geometric dataset.
-    #
-    #     Note that only features are exported. Labels are subjective
-    #     are therefore determined externally (ie data.y must be set later.)
-    #
-    #     Returns
-    #     -------
-    #
-    #     """
-    #     import torch
-    #     from torch_geometric.data import Data
-    #
-    #     nd = self.to_numpydict()
-    #
-    #     # torch_geometric uses 2 x N, not N x 2 edgelist
-    #     edges = torch.tensor(nd['edge_list'].T, dtype=torch.long)
-    #
-    #     # copy node and edge features from numpydict as-is
-    #     node_features = torch.tensor(nd['node_features'], dtype=torch.double)
-    #     edge_attr = torch.tensor(nd['edge_features'], dtype=torch.double)
-    #
-    #     # for now, mask selects candidate grain only
-    #     mask = torch.BoolTensor([self.nodes[n]['mobility_label'][0] == 1. for n in sorted(self.nodes)])
-    #
-    #     d = Data(x=node_features, edge_index=edges, edge_attr=edge_attr, mask=mask)
-    #
-    #     return d
-
-    # def to_dgl_dataset(self):
-    #     # TODO implement this
-    #     pass
-    #TODO self.nodes and self.edges ARE UNSORTED...
-    def to_numpydict(self):
-        # TODO implement this
-        """
-        returns edge list, node features, edge features, graph features
-        """
-        nd = {}
-
-        nd['edge_list'] = np.asarray(self.edges)
-
-        #  id of first node and edges
-        n0 = next((x for x in self.nodes))
-        e0 = next((x for x in self.edges))
-
-        # names of features for nodes and edges
-        # note that single labels may correspond to multiple values (ie unit vector has 2 components for edges)
-        node_feat_ids = sorted(self.nodes[n0].keys())
-        edge_feat_ids = sorted(self.edges[e0].keys())
-
-        # node features
-        node_feat = []
-        for n in self.nodes:
-            node_feat.append(np.concatenate([self.nodes[n][f] for f in node_feat_ids]))
-        node_feat = np.asarray(node_feat)
-
-        edge_feat = []
-        for e in self.edges:
-            edge_feat.append(np.concatenate([self.edges[e][f] for f in edge_feat_ids]))
-        edge_feat = np.asarray(edge_feat)
-
-        nd['node_features'] = node_feat
-        nd['edge_features'] = edge_feat
-
-        nd['node_feature_ids'] = node_feat_ids
-        nd['edge_feature_ids'] = edge_feat_ids
-        # TODO add graph features, normalization, split into continuous vs categorical?
-
-        return nd
-
-    def to_json(self, path):
-        """
-        Saves graph data to json file. Can be loaded with graph.from_json(path).
-
-        Parameters
-        ----------
-        path: str or Path object
-            Path to save data to
-        """
-
-        nd = {}
-
-        # add nodes
-        nd['nodes'] = {n: self.nodes[n] for n in self.nodes}
-
-        # add edges
-        nd['edges'] = {e: self.edges[e] for e in self.edges}
-
-        # add graph level features
-        nd['graph_attr'] = self.graph_attr
-
-        # add metadata
-        nd['metadata'] = self.metadata
-
-        # add path
-        nd['path'] = self.root
-
-        jd = DictTransformer.to_jsondict(nd)
-
-        with open(path, 'w') as f:
-            json.dump(jd, f,)
-
-    @staticmethod
-    def from_json(path):
-        r"""
-        Loads data from json file into Graph object.
-
-        Parameters
-        ----------
-        path: str or Path object
-            path to graph data stored as json (from Graph().to_json())
+        Sorted list of edge indices.
 
         Returns
         -------
-        g: Graph object
-            Graph with data loaded from path
-
+        edgelist: list(tuple)
+            sorted list of edges. Each edge is represented as (source, target) where
+            source and target are items in self.nodes.
         """
-        g = Graph()
-        with open(path, 'r') as f:
-            jd = json.load(f)
+        return [self.edges[e] for e in self.eli]
 
-        nd = DictTransformer.from_jsondict(jd)
+    # TODO update code to use nodelist where applicable (instead of explicitly calling
+    #      [self.nodes[n] for n in sorted(self.nodes)]
+    @property
+    def nodelist(self):
+        """
+        Sorted list of nodes.
 
-        # add nodes and node features
-        g.add_nodes_from(((node, attr) for node, attr in nd['nodes'].items()))
+        Returns
+        -------
+        nodelist: list
+            sorted list of node indices [idx1, idx2, ...]. Node objects can be accessed through
+            self.nodes[idx].
+        """
+        return [self.nodes[n] for n in self.nli]
 
-        # add edges and edge features
-        g.add_edges_from(((*edge, attr) for edge, attr in nd['edges'].items()))
+    @property
+    def nli(self):
+        """
+        sorted list of node indices
+        Returns
+        -------
+        node_list_indices: list
+            sorted list of nodi indices [idx1, idx2, ...]. Individual node objects can be accessed through
+            self.nodes[idx].
+        """
+        return sorted(self.nodes)
 
-        # add graph attributes
-        g.graph_attr = nd['graph_attr']
+    @property
+    def eli(self):
+        """
+        Sorted list of edge indices.
 
-        # file root
-        g.root = nd['path']
+        Returns
+        -------
+        edgelist: list(tuple)
+            sorted list of edges. Each edge is represented as (source, target) where
+            source and target are items in self.nodes.
+        """
+        return sorted(self.edges)
 
-        for n in g.nodes:
-            g.nodes[n]['rle']['counts'] = bytes(g.nodes[n]['rle']['counts'], 'utf-8')
-
-        metadata = {}
-        nd = nd['metadata']
-        metadata['img_size'] = tuple(nd['img_size'])
-        metadata['timesteps'] = np.array(nd['timesteps'])
-        metadata['mobility_vectors'] = nd['mobility_vectors']
-        metadata['grain_sizes'] = np.array(nd['grain_sizes'])
-        metadata['center_id'] = nd['center_id']  # id of grain located at center of image
-        metadata['center_bounds_rrcc'] = np.array(nd['center_bounds_rrcc'])
-        g.metadata = metadata
-
-        return g
-
-    def to_image(self):
+    def to_image(self, color_by_mobility=False):
         """
         turn graph back into image from spparks output
         """
@@ -439,8 +274,32 @@ class Graph(nx.DiGraph):
         where = np.stack(np.where(img == cid), axis=1).min(axis=0)
         shift = shift2 - where
         img = np.roll(img, shift, axis=(0, 1))
-        assert not np.any(img == -1), 'error in reconstructing image, some pixels not filled'
-        return img.astype(np.uint16)
+        #assert not np.any(img == -1), 'error in reconstructing image, some pixels not filled'
+        img = img.astype(np.uint16)
+        if color_by_mobility:
+            s = img.shape
+            # coordinates of pixels in image
+            cc, rr = np.meshgrid(np.arange(s[1]), np.arange(s[0]))
+            # True where grain id of pixel [i,j] != pixel[i+1,j] or pixel[i, j+1]
+            # including periodic boundary conditions
+            edge_mask = np.logical_or(img[rr, cc] != img[(rr + 1) % s[0], cc],
+                                      img[rr, cc] != img[rr, (cc + 1) % s[1]])
+            edge_mask = binary_dilation(edge_mask, selem=np.ones((2, 2), np.bool))
+
+            new_img = np.zeros((*img.shape, 3), np.uint8)
+
+            mobility_colors = [(255, 255, 255), (106, 139, 152), (151, 0, 0)]
+
+            # assign color to image
+            for n in sorted(self.nodes):
+                new_img[img == n, :] = mobility_colors[self.nodes[n]['mobility_label']]
+
+            # add edges
+            new_img[edge_mask] = (0, 0, 0)
+
+            img = new_img
+
+        return img
 
     @staticmethod
     def from_spparks_out(path):
@@ -460,18 +319,21 @@ class Graph(nx.DiGraph):
         # TODO custom features
         return create_graph(path)
 
-
-
-    # def __repr__(self):
-    #     # TODO implement this
-    #     pass
+    def __repr__(self):
+        repr = f'Graph ({len(self.nodes)} nodes, {len(self.edges)} edges)'
+        return repr
 
     def copy(self):
-        # TODO implement this
-        pass
+        """
+        Return a copy of the graph
+        Returns
+        -------
+        gc: Graph object
+            copy of graph.
+        """
+        return deepcopy(self)
 
     def to_spparks_out(self):
-        # TODO finish this to verify computations perform as expected
         # compare graid_ids, mobilities, timesteps, grain_sizes, etc to
         # original hd5 file
 
@@ -500,8 +362,8 @@ class Graph(nx.DiGraph):
         """
         check to make sure all data in graph exactly matches data contained in h5 files
         """
-        if root == "": # default, read from metadata.root
-            root = self.root
+        if root == "":  # default, read from metadata
+            root = self.metadata['path']
 
         sd = self.to_spparks_out()
 
@@ -532,173 +394,120 @@ class Graph(nx.DiGraph):
                     print("file: {}, key: {}\n\tmatch: {}".format(k, kk, match_i))
         return match
 
-
-
-
-
-class DictTransformer:
-
-    @staticmethod
-    def to_jsondict(nd):
+    def to_dict(self):
         """
-        Converts a dictionary containing numpy arrays to a format that can be saved with json.dump()
+        Returns a json-compatible dictionary of graph nodes, edges, and metadata (ie all information needed to exactly reconstruct the graph exactly with self.from_dict()
 
         Parameters
-        ----------
-        nd: dict
-            dictionary that may contain numpy arrays.
+        -----------
+        None
 
         Returns
-        -------
+        -----------
         jd: dict
-            json-formatted dict that can be saved with json.dump().
+            json-compatible dictionary with keys 'nodes', 'edges', 'metadata', and values contain all of the information contained in the graph.
         """
-        jd = {}
-        for k, v in nd.items():
-            # keys for json must be one of following format
-            if type(k) not in (str, int, float, bool, None):
-                k = str(k)
+        nodes = {str(k): deepcopy(v) for k, v in self.nodes.items()}
+        for k in nodes.keys():
+            nodes[k]['rle']['counts'] = nodes[k]['rle']['counts'].decode('utf-8')
 
+        edges = {str(k): deepcopy(v) for k, v in self.edges.items()}
+        for k in edges.keys():
+            edges[k]['unit_vector'] = edges[k]['unit_vector'].tolist()
 
-            t = type(v)
-            if t == dict:  # if v is dict, recursively apply method to cover all k-v pairs in sub-dictionaries
-                jd[k] = DictTransformer.to_jsondict(v)
-            elif t == np.ndarray:  # if v is array, convert to list so it's compatible with json
-                jd[k] = v.tolist()
+        metadata = {}
+        if self.metadata:  # if metadata is not an empty dict
+            metadata = {k: deepcopy(v) for k, v in self.metadata.items()}
+            for k, v in self.metadata.items():
+                if type(v) == np.ndarray:
+                    metadata[k] = v.tolist()
+                    # self.metadata[int(k)] = np.asarray(g.edges[int(k)]['unit_vector'])
+                elif k == "mobility_vectors":
+                    metadata[k] = {kk: (vv[0], vv[1]) for kk, vv in v.items()}
+                elif k == 'path':
+                    metadata[k] = str(v)
+                else:
+                    metadata[k] = v
 
-            elif t in (tuple, list, set):
-                jd[k] = DictTransformer.to_jsonlist(v)
-            elif t == bytes:
-                jd[k] = v.decode('utf-8')
-            elif isinstance(v, PurePath):  # path object, note we check v and not t
-                jd[k] = str(v)
-            else:  # otherwise, store v as-is
-                jd[k] = v
-
+        jd = {'nodes': nodes,
+              'edges': edges,
+              'metadata': metadata, }
         return jd
 
-    @staticmethod
-    def to_jsonlist(x):
+    def to_json(self, path):
         """
-        Convert list to a json-compatible list. Iterates through items
-        in the list, and applies the following changes:
-            converts tuples, ndarrays, sets to list
-            converts dicts to jsondict (see to_jsondict)
+        Saves graph to json file.
 
         Parameters
-        ----------
-        x: list-like
-            list of values to iterae over
-
-        Returns
-        --------
-        x_json: list
-            json-compatible list
-
+        -----------
+        path: str or Path object
+            path to save json file to
         """
-        x_json = []
-        for item in x:
-            t = type(item)
-            if t == dict:
-                x_json.append(DictTransformer.to_jsondict(item))
-
-            elif t == np.ndarray:
-                x_json.append(item.tolist())
-
-            elif t in (tuple, list, set):
-                x_json.append(DictTransformer.to_jsonlist(item))
-
-            else:
-                x_json.append(item)
-
-        return x_json
+        with open(path, 'w') as f:
+            json.dump(self.to_dict(), f)
 
     @staticmethod
-    def from_jsondict(jd):
+    def from_dict(jd):
         """
-        Convert json-compatible dictionary into dictionary containing numpy arrays.
-
-        Applies the following changes:
-            Where applicable, converts keys (always str for json) to numeric, and
-            Converts numeric lists to arrays (json always stores list-like objects as lists)
+        Loads graph object from dictionary. See to_dict() for format of dictionary.
 
         Parameters
-        ----------
+        -----------
         jd: dict
-            json-formatted dictionary
+            json-compatible dictionary with format defined in Graph.to_dict().
 
         Returns
-        -------
-        nd: dict
-            numpy-formatted dictionary with keys that may be numeric and values that may be ndarrays.
+        ----------
+        g: Graph object
+            Graph with data loaded from dict
         """
-        nd = {}
-        for k, v in jd.items():
-            k = _str_to_numeric(k)
-            t = type(v)
-            if k == 'metadata':
-                nd[k] = v
-            else:
-                if t == dict:
-                    # if v is a dict, recursively apply method to cover all k-v pairs in sub-dictionaries
-                    nd[k] = DictTransformer.from_jsondict(v)
-                elif t == list:  # list or array
-                    if type(v[0]) == list:
-                        if all([len(x) == len(v[0]) for x in v]):
-                            nd[k] = np.array(v)
-                        else:
-                            if all([type(x) in (int, float, bool) for x in v]):
-                                nd[k] = np.array(v)
-                            else:
-                                nd[k] = DictTransformer.to_jsonlist(v)
-                    else:
-                        nd[k] = DictTransformer.to_jsonlist(v)
+        G = Graph()
+        for k, v in jd['nodes'].items():
+            v['rle']['counts'] = bytes(v['rle']['counts'], 'utf-8')
+            G.add_node(int(k), **v)
 
-                    arr = np.array(v)
-                    if np.issubdtype(arr.dtype, np.number):  # array is numeric
-                        nd[k] = arr
-                    else:  # array is not numeric, keep item as a list
-                        nd[k] = v
-                elif t == str and '/' in v:  # object appears to be a path
-                    nd[k] = Path(v)
-                else:  # other type, leave v as-is
-                    nd[k] = v
+        for k, v in jd['edges'].items():
+            k = [int(x) for x in k.strip('()').split(', ')]
+            v['unit_vector'] = np.asarray(v['unit_vector'])
+            G.add_edge(*k, **v)
 
-        return nd
+        metadata = jd['metadata']
+        md = {}
+        if metadata:  # if metadata is not empty
+            md['img_size'] = tuple(metadata['img_size'])
+            md['timesteps'] = np.asarray(metadata['timesteps'])
+            mv = {}
+            for k, v in metadata['mobility_vectors'].items():
+                mv[k] = (v[0], v[1])
+            md['mobility_vectors'] = mv
+            md['grain_sizes'] = np.asarray(metadata['grain_sizes'])
+            md['center_id'] = metadata['center_id']
+            md['center_bounds_rrcc'] = np.asarray(metadata['center_bounds_rrcc'])
+            md['path'] = Path(metadata['path'])
+
+        G.metadata = md
+
+        return G
 
     @staticmethod
-    def from_jsonlist(x):
-        pass
+    def from_json(path, keep_path=True):
+        """
+        Loads graph object from json file.
 
-def _str_to_numeric(s):
-    """
-    Convert string s to numeric value, if applicable.
+        Parameters
+        ----------
+        path: str or Path object
 
-    Necessary for reading json dicts (keys always strings) back to consistent format for graph
-    (ie keys for node id's are ints)
+        keep_path: Bool
+            if True, path from original data source is preserved.
+            Otherwise, the path of the json file itself is used.
 
-    Parameters
-    ----------
-    s: str
-        string
-
-    Returns
-    -------
-    int, float, tuple(int, int), or str
-        converted value.
-
-    """
-    try:  # case 1: s is integer (ie '3')
-        return int(s)
-    except ValueError:
-        try:  # case 2 s is float (ie '3.5')
-            return float(s)
-        except ValueError:
-            try:  # case 3 s is a tuple of integers- like from an edge list (ie '(3, 5)')
-                return tuple(int(x) for x in s.strip('()').split(', '))
-            except:  # case 4 s is a path
-                return s
-
+        """
+        with open(path, 'r') as f:
+            G = Graph.from_dict(json.load(f))
+        if not keep_path:
+            G.metadata['path'] = path
+        return G
 
 def _add_node_to_img(g, img, src, target):
     """
@@ -716,11 +525,12 @@ def _add_node_to_img(g, img, src, target):
     shift1 = -np.mean(np.where(bitmask), axis=1)  # top left of bitmask to center of grain
     shift2 = xcenter - (edge['unit_vector'] * edge['length'])
     coords = np.round((np.stack(np.where(bitmask), axis=1) + shift1 + shift2)).astype(np.int).T
-    #coords = coords % np.reshape(img.shape, (2, 1))
+    coords = coords % np.reshape(img.shape, (2, 1))
 
     img[coords[0], coords[1]] = target
 
     return img
+
 
 def _add_neighbors_to_img(g, img, src, visited):
     neighborhoods = [(src, [n for n in g.neighbors(src)])]
@@ -740,7 +550,7 @@ def _add_neighbors_to_img(g, img, src, visited):
             new_edgelist = (n, [x for x in g.neighbors(n) if not visited.get(x)])
 
             for node in new_edgelist[1]:
-                visited[node] = True # all of these nodes will be visited
+                visited[node] = True  # all of these nodes will be visited
 
             if new_edgelist[1]:
                 neighborhoods.append(new_edgelist)
@@ -749,15 +559,17 @@ def _add_neighbors_to_img(g, img, src, visited):
 
 
 if __name__ == "__main__":
-    p2 = Path('/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/'
-     'SPPARKS_simulations/candidate-grains/2020_12_26_21_38_candidate_grains_master/spparks_results/run_472')
-    assert p2.exists()
-    json_path = Path('..', 'data', 'temp', 'test_graph_2.json')
-    if not json_path.is_file():
-        G = Graph.from_spparks_out(p2)
-
-        G.to_json(json_path)
-    else:
-        G = Graph.from_json(json_path)
-
-    G.validate_with_spparks_outputs()
+    ptest = Path('../data/datasets/candidate-grains-small-lmd-v1.0.0/val/2021_01_15_18_32_candidate_grains_master-run_421.json')
+    gtest = Graph.from_json(ptest).to_image()
+    # p2 = Path('/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/'
+    #  'SPPARKS_simulations/candidate-grains/2020_12_26_21_38_candidate_grains_master/spparks_results/run_472')
+    # assert p2.exists()
+    # json_path = Path('..', 'data', 'temp', 'test_graph_2.json')
+    # # if not json_path.is_file():
+    # #     G = Graph.from_spparks_out(p2)
+    # #
+    # #     G.to_json(json_path)
+    # # else:
+    # #     G = Graph.from_json(json_path)
+    # #
+    # # G.validate_with_spparks_outputs()

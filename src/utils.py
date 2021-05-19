@@ -3,12 +3,13 @@ from pathlib import Path
 import os
 from pathlib import Path
 from src.graphs import Graph
-from src.graph_features import  compute_graph_features
+from src.graph_features import default_targets
 import h5py
 from src.image import img_from_output
 import skimage
 from skimage.io import imsave
 import numpy as np
+
 
 def extract_graphs_spparks(src, target, n_jobs=-1, out_type='graph'):
     r"""
@@ -131,16 +132,14 @@ def _ie(pair):
         grain_labels = (grain_labels > 0).sum(1) - 1
 
         grain_sizes = np.asarray(stats['grainsize'])[:, 1:]
-        timesteps = np.asarray(stats['time'])
 
-        gf = compute_graph_features(img, grain_labels, grain_sizes, timesteps)
+        gf = default_targets(grain_labels, grain_sizes)
         fname = "{}_cgr_{:.3f}_crgr_{:.3f}.png".format(src.name,
                                                gf['candidate_growth_ratio'],
                                                gf['candidate_rgr'])
         imsave(target / fname, img)
     except:
         pass
-
 
 
 def batcher(data, batch_size=3, min_size=2):
@@ -186,6 +185,19 @@ def batcher(data, batch_size=3, min_size=2):
         batches = batches[:-1]
 
     return batches
+
+def pyg_edgelist(g):
+    """
+    Parameters
+    ----------
+    None
+
+    Returns
+    ---------
+    edgelist: ndarray
+     edgelist in pyg format
+    """
+    return np.asarray(g.edgelist).T
 
 
 if __name__ == "__main__":

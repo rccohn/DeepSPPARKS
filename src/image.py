@@ -3,23 +3,23 @@ import numpy as np
 from pathlib import Path
 from skimage.morphology import binary_dilation
 
-def img_from_output(root, enhance_edges=True,):
+def img_from_output(path, enhance_edges=True, ):
     r"""
     Read SPPARKS meso input/output files and build an image where the candidate
     grain is centered in the matrix.
 
     Parameters
     ----------
-    root: str or Path object
-        path to root containing initial.dream3d
+    path: str or Path object
+        path to directory containing initial.dream3d
 
     enhance_edges: bool
         if True, pixels identified to be on the grain boundary will be expanded
         through binary dilation to achieve more defined grain boundaries
 
     """
-    root = Path(root)  # force root to Path object
-    initfile = root / 'initial.dream3d'
+    path = Path(path)  # force path to Path object
+    initfile = path / 'initial.dream3d'
 
 
     assert initfile.is_file(), f'{str(initfile.absolute())} not found!'
@@ -109,7 +109,8 @@ def _roll_img(img, i):
     """
 
     # center indices of image
-    r, c = [x//2 for x in img.shape]
+    rmax, cmax = img.shape
+    r, c = rmax//2, cmax//2
 
     # coordinates of grain of interest
     rows, cols = (np.sort(x) for x in np.where(img == i))
@@ -130,26 +131,27 @@ def _roll_img(img, i):
 
 
     if len(rows) == 1:  # mask is only 1 pixel, can't take difference in coords to detect split
-        row_shift = r - rows[0]
+        row_shift = (r - rows[0]) % rmax
 
     elif (rows[1:] - rows[:-1]).max() > 1:  # grain wraps around top to bottom
         dr = rows[1:]-rows[:-1]
         rows[:dr.argmax()+1] += rows.max()
-        row_shift = int(r - rows.mean())-1
+        row_shift = int(np.rint(r - rows.mean())-1) % rmax
     else:  # 'normal' case- grain is >1 pixel, not wrapped around top/bottom
-        row_shift = int(r - rows.mean())
+        row_shift = int(np.rint(r - rows.mean())) % rmax
 
 
     if len(cols) == 1: # mask is only 1 pixel
-        col_shift = c - cols[0]
+        col_shift = (c - cols[0]) % cmax
 
     elif (cols[1:] - cols[:-1]).max() > 1:  # grain wraps from right to left
         dc = cols[1:]-cols[:-1]
         cols[:dc.argmax()+1] += cols.max()
-        col_shift = int(c - cols.mean())-1
+        col_shift = int(np.rint(c - cols.mean())-1) % cmax
     else:  # normal case, grain > 1px and not wrapped around right/left
-        col_shift = int(c - cols.mean())
+        col_shift = int(np.rint(c - cols.mean())) % cmax
 
+    #print(row_shift, col_shift)
     img_roll = np.roll(img, (row_shift, col_shift), axis=(0, 1))
 
     return img_roll
