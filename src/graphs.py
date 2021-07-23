@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from skimage.morphology import binary_dilation
 import graphviz  # https://pypi.org/project/graphviz/
 from pathlib import Path, PurePath
-from src.image import _roll_img
+from src.image import roll_img
 from src import graph_features as gf
 from pycocotools import mask as RLE
 from copy import deepcopy
@@ -60,6 +60,10 @@ def img_to_graph(img, grain_labels):
       (https://www.morganclaypoolpublishers.com/catalog_Orig/samples/9781681737669_sample.pdf)
 
     """
+
+    grain_rles = [RLE.encode(np.asfortranarray(img == i))
+                  for i in range(img.max() + 1)]
+
     G = Graph()  # simple, undirected graph
 
     # TODO this part is slow, look into parallelizing?
@@ -69,7 +73,7 @@ def img_to_graph(img, grain_labels):
     #       Alternatively: many graphs will have to be computed, keep
     #      this function as single-thread and run in parallel for multiple graphs
     for idx in range(len(grain_labels)):
-        img_roll = _roll_img(img, idx)
+        img_roll = roll_img(img, idx)
         grain_mask = img_roll == idx  # selects single grain
 
         # to find neighbors of grain, apply binary dilation tho the mask and look for overlap
@@ -88,11 +92,15 @@ def img_to_graph(img, grain_labels):
 
         # node and edge features computed from image, edge list (source node can be inferred from this)
         node_features = gf.compute_node_features(grain_mask, grain_labels[idx])  # dictionary of features for the node
+        # TODO temporary fix for testing, move this to graph_features.py if it works
+        node_features['rle'] = grain_rles[idx]
 
         G.add_node(idx, **node_features)
 
         # list of tuples of the format (source_idx, target_idx, {**features})
-        ebunch = [(*e, gf.compute_edge_features(img_roll, *e)) for e in edges]
+        # TODO update method with final version (with or without edge features)
+        ebunch = [(*e, ) for e in edges]
+        #ebunch = [(*e, gf.compute_edge_features(img_roll, *e)) for e in edges]
 
         G.add_edges_from(ebunch)
 
@@ -242,7 +250,35 @@ class Graph(nx.DiGraph):
         """
         return sorted(self.edges)
 
-    def to_image(self, color_by_mobility=False):
+    @property
+    def cidx(self):
+        """
+        Candidate idx.
+        Returns
+        -------
+        cidx:int
+            self.nodelist[self.cidx] returns the node corresponding
+            to the candidate grain
+        """
+        return np.argmin([n['grain_type'] for n in self.nodelist])
+
+    def to_image2(self, suppress=False):
+        """
+
+        Returns
+        -------
+
+        """
+        img = np.zeros(self.metadata['img_size'], np.int16) - 1
+        for i in self.nli:
+            n = self.nodes[i]
+            mask = RLE.decode(n['rle']).astype(np.bool)
+            img[mask] = i
+        if not suppress:
+            assert np.all(img != -1), "not all masks filled {}".format(self.metadata['path'])
+        return img
+
+    def to_image(self, color_by_type=False):
         """
         turn graph back into image from spparks output
         """
@@ -258,7 +294,7 @@ class Graph(nx.DiGraph):
         wmin = np.min(where, axis=0)
 
         shift1 = -wmin  # to top left corner of grain bbox in bitmask
-        shift2 = self.metadata['center_bounds_rrcc'][::2]  # center of img
+        shift2 = self.metadata['center_rc']  # center of img
 
         shift = shift1 + shift2
 
@@ -268,15 +304,15 @@ class Graph(nx.DiGraph):
         visited = {x: False for x in self.nodes}
         visited[cid] = True
         img = _add_neighbors_to_img(self, img, cid, visited)
-        img = _roll_img(img, cid)  # not sure why this is needed but rolling the
+        img = roll_img(img, cid)  # not sure why this is needed but rolling the
                                    # image to its final position doesn't work without it
 
         where = np.stack(np.where(img == cid), axis=1).min(axis=0)
         shift = shift2 - where
         img = np.roll(img, shift, axis=(0, 1))
-        #assert not np.any(img == -1), 'error in reconstructing image, some pixels not filled'
+        assert not np.any(img == -1), 'error in reconstructing image, some pixels not filled'
         img = img.astype(np.uint16)
-        if color_by_mobility:
+        if color_by_type:
             s = img.shape
             # coordinates of pixels in image
             cc, rr = np.meshgrid(np.arange(s[1]), np.arange(s[0]))
@@ -288,11 +324,11 @@ class Graph(nx.DiGraph):
 
             new_img = np.zeros((*img.shape, 3), np.uint8)
 
-            mobility_colors = [(255, 255, 255), (106, 139, 152), (151, 0, 0)]
+            type_colors = [(255, 255, 255), (106, 139, 152), (151, 0, 0)]
 
             # assign color to image
             for n in sorted(self.nodes):
-                new_img[img == n, :] = mobility_colors[self.nodes[n]['mobility_label']]
+                new_img[img == n, :] = type_colors[self.nodes[n]['grain_type']]
 
             # add edges
             new_img[edge_mask] = (0, 0, 0)
@@ -340,13 +376,13 @@ class Graph(nx.DiGraph):
         spparks_dict = {'initial.dream3d': {}, 'stats.h5': {}}
 
         # shift to_image() by 1 to get ids from 1-N instead of 0-N-1
-        spparks_dict['initial.dream3d']['grain_ids'] = self.to_image() + 1
+        spparks_dict['initial.dream3d']['grain_ids'] = self.to_image2() + 1
 
-        # go from integer mobility labels back to the vectors from spparks
-        mob_map = np.stack([self.metadata['mobility_vectors'][f'type_{x}'][0]
+        # go from integer grain type labels back to the vectors from spparks
+        mob_map = np.stack([self.metadata['grain_types'][f'type_{x}'][0]
                             for x in range(3)])
-        mobs = mob_map[[self.nodes[i]['mobility_label'] for i in sorted(self.nodes)]]
-        mobs = np.pad(mobs, pad_width=((1, 0), (0, 0)), constant_values=0)
+        mobs = mob_map[[n['grain_type'] for n in self.nodelist]]
+        mobs = np.pad(mobs, pad_width=((1, 0), (0, 1)), constant_values=0)
         spparks_dict['initial.dream3d']['grain_labels'] = mobs
 
         # stack grain sizes on array of zeros to account for offset (ie grain idx starts at 1)
@@ -412,8 +448,10 @@ class Graph(nx.DiGraph):
             nodes[k]['rle']['counts'] = nodes[k]['rle']['counts'].decode('utf-8')
 
         edges = {str(k): deepcopy(v) for k, v in self.edges.items()}
-        for k in edges.keys():
-            edges[k]['unit_vector'] = edges[k]['unit_vector'].tolist()
+
+        # TODO remove when no longer needed
+        #for k in edges.keys():
+        #    edges[k]['dr'] = edges[k]['dr'].tolist()
 
         metadata = {}
         if self.metadata:  # if metadata is not an empty dict
@@ -422,7 +460,7 @@ class Graph(nx.DiGraph):
                 if type(v) == np.ndarray:
                     metadata[k] = v.tolist()
                     # self.metadata[int(k)] = np.asarray(g.edges[int(k)]['unit_vector'])
-                elif k == "mobility_vectors":
+                elif k == "grain_types":
                     metadata[k] = {kk: (vv[0], vv[1]) for kk, vv in v.items()}
                 elif k == 'path':
                     metadata[k] = str(v)
@@ -468,21 +506,22 @@ class Graph(nx.DiGraph):
 
         for k, v in jd['edges'].items():
             k = [int(x) for x in k.strip('()').split(', ')]
-            v['unit_vector'] = np.asarray(v['unit_vector'])
-            G.add_edge(*k, **v)
+            #todo remove when no longer needed
+            #v['dr'] = np.asarray(v['dr'])
+            G.add_edge(*k)#, **v)
 
         metadata = jd['metadata']
         md = {}
         if metadata:  # if metadata is not empty
             md['img_size'] = tuple(metadata['img_size'])
             md['timesteps'] = np.asarray(metadata['timesteps'])
-            mv = {}
-            for k, v in metadata['mobility_vectors'].items():
-                mv[k] = (v[0], v[1])
-            md['mobility_vectors'] = mv
+            gt = {}
+            for k, v in metadata['grain_types'].items():
+                gt[k] = (v[0], v[1])
+            md['grain_types'] = gt
             md['grain_sizes'] = np.asarray(metadata['grain_sizes'])
             md['center_id'] = metadata['center_id']
-            md['center_bounds_rrcc'] = np.asarray(metadata['center_bounds_rrcc'])
+            md['center_rc'] = np.asarray(metadata['center_rc'])
             md['path'] = Path(metadata['path'])
 
         G.metadata = md
@@ -518,13 +557,15 @@ def _add_node_to_img(g, img, src, target):
         (ie the edge (src, target) should exist)
     """
     # note- need to handle wrapped grains later
-    xcenter = np.mean(np.where(img == src), axis=1)  # centroid of source grain
+    #xcenter = np.mean(np.where(img == src), axis=1)  # centroid of source grain
     edge = g.edges[(src, target)]
 
     bitmask = RLE.decode(g.nodes[target]['rle'])
-    shift1 = -np.mean(np.where(bitmask), axis=1)  # top left of bitmask to center of grain
-    shift2 = xcenter - (edge['unit_vector'] * edge['length'])
-    coords = np.round((np.stack(np.where(bitmask), axis=1) + shift1 + shift2)).astype(np.int).T
+    # shift1 = -np.mean(np.where(bitmask), axis=1)  # top left of bitmask to center of grain
+    # shift2 = xcenter - (edge['unit_vector'] * edge['length'])
+    # shift = shift1 + shift2
+    shift = np.min(np.where(img == src), axis=1) - edge['dr']
+    coords = np.round((np.stack(np.where(bitmask), axis=1) + shift)).astype(np.int).T
     coords = coords % np.reshape(img.shape, (2, 1))
 
     img[coords[0], coords[1]] = target
@@ -540,7 +581,7 @@ def _add_neighbors_to_img(g, img, src, visited):
     while neighborhoods:  # continue while there are still neighbors
         edgelist = neighborhoods.pop(0)  # (src, [n for n in g.neighbors(src)] if not visited[n])
         src = edgelist[0]
-        img = _roll_img(img, src)  # avoid issues from periodic boundary conditions by always working at center of image
+        img = roll_img(img, src)  # avoid issues from periodic boundary conditions by always working at center of image
         while edgelist[1]:
 
             n = edgelist[1].pop(0)  # get target node
@@ -559,17 +600,11 @@ def _add_neighbors_to_img(g, img, src, visited):
 
 
 if __name__ == "__main__":
-    ptest = Path('../data/datasets/candidate-grains-small-lmd-v1.0.0/val/2021_01_15_18_32_candidate_grains_master-run_421.json')
-    gtest = Graph.from_json(ptest).to_image()
-    # p2 = Path('/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/'
-    #  'SPPARKS_simulations/candidate-grains/2020_12_26_21_38_candidate_grains_master/spparks_results/run_472')
-    # assert p2.exists()
-    # json_path = Path('..', 'data', 'temp', 'test_graph_2.json')
-    # # if not json_path.is_file():
-    # #     G = Graph.from_spparks_out(p2)
-    # #
-    # #     G.to_json(json_path)
-    # # else:
-    # #     G = Graph.from_json(json_path)
-    # #
-    # # G.validate_with_spparks_outputs()
+    path = '/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/datasets/candidate-grains-small-v1.0.1/train/2020_11_06_12_23_candidate_grains_master-run_533.json'
+    g = Graph.from_json(path)
+    img = g.to_image()
+    # img = g.to_image()
+    # fig, ax = plt.subplots()
+    # ax.imshow(img, cmap='rainbow')
+    # plt.show()
+    # print((img == -1).sum())

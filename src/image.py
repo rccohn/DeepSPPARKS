@@ -70,7 +70,7 @@ def img_from_output(path, enhance_edges=True, ):
     # is 0 for boundary, 1/3 for low mobility, 2/3 for high mobility, and 1 for
     # candidate grain. Ie grayscale image.
 
-    gids = _roll_img(gids, 1.0) # center the grain in the image
+    gids = roll_img(gids, 1.0) # center the grain in the image
 
     return gids
 
@@ -82,7 +82,7 @@ def img_from_output(path, enhance_edges=True, ):
 
 
 
-def _roll_img(img, i):
+def roll_img(img, i):
     """
     Roll image *img* such that grain *i* is approximately centered.
 
@@ -110,9 +110,10 @@ def _roll_img(img, i):
 
     # center indices of image
     rmax, cmax = img.shape
-    r, c = rmax//2, cmax//2
+    r, c = ((rmax + (rmax % 2)) // 2) - 1, ((cmax + (cmax % 2)) // 2) - 1
 
     # coordinates of grain of interest
+    # needs to be sorted for all coords to appear in order
     rows, cols = (np.sort(x) for x in np.where(img == i))
 
     # for both row and column indices:
@@ -128,34 +129,33 @@ def _roll_img(img, i):
     # if a discontinuity is found: extend coordinates past the boundary of the image, and then roll
     # such that the mean position is at the center of the image
 
-
-
     if len(rows) == 1:  # mask is only 1 pixel, can't take difference in coords to detect split
-        row_shift = (r - rows[0]) % rmax
+        row_shift = (r - rows[0])
+    else:
+        if (rows[1:] - rows[:-1]).max() > 1:  # grain wraps around top to bottom
+            dr = rows[1:]-rows[:-1]
+            rows[:dr.argmax()+1] += rmax
+        row_shift = (r - int(rows.mean()))
 
-    elif (rows[1:] - rows[:-1]).max() > 1:  # grain wraps around top to bottom
-        dr = rows[1:]-rows[:-1]
-        rows[:dr.argmax()+1] += rows.max()
-        row_shift = int(np.rint(r - rows.mean())-1) % rmax
-    else:  # 'normal' case- grain is >1 pixel, not wrapped around top/bottom
-        row_shift = int(np.rint(r - rows.mean())) % rmax
+    if len(cols) == 1:  # mask is only 1 pixel
+        col_shift = (c - cols[0])
+    else:
+        if (cols[1:] - cols[:-1]).max() > 1:  # grain wraps from right to left
+            dc = cols[1:]-cols[:-1]
+            cols[:dc.argmax()+1] += cmax
+        col_shift = (c - int(cols.mean()))
 
-
-    if len(cols) == 1: # mask is only 1 pixel
-        col_shift = (c - cols[0]) % cmax
-
-    elif (cols[1:] - cols[:-1]).max() > 1:  # grain wraps from right to left
-        dc = cols[1:]-cols[:-1]
-        cols[:dc.argmax()+1] += cols.max()
-        col_shift = int(np.rint(c - cols.mean())-1) % cmax
-    else:  # normal case, grain > 1px and not wrapped around right/left
-        col_shift = int(np.rint(c - cols.mean())) % cmax
-
-    #print(row_shift, col_shift)
     img_roll = np.roll(img, (row_shift, col_shift), axis=(0, 1))
 
     return img_roll
 
 
 if __name__ == "__main__":
-    pass
+    x = np.zeros((6,6))
+    x[1:4, 1:4] = 1
+    z = x.copy()
+    for rs in range(10):
+        for cs in range(10):
+            x = np.roll(x, (rs, cs), axis=(0, 1))
+            y = roll_img(x, 1)
+            assert np.all(y == z), f'{rs},{cs}'
