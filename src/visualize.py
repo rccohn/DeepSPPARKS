@@ -70,7 +70,7 @@ def pretty_cm(cm, labelnames, cscale=0.6, ax0=None, fs=6, cmap='cool'):
         return ax
 
 
-def agg_cm(cmlist, fname):
+def agg_cm(cmlist, return_figure=True, fpath=None):
     """
     Display confusion matrix for train, validation, and test performance and save to disk.
     
@@ -80,13 +80,20 @@ def agg_cm(cmlist, fname):
         list-like structure containing confusion matrices in sklearn format
         (sklearn.metrics.confusion_matrix(y_true, y_predict)
          for the training, validation, and test sets respectively.
-    
-    fname: str or Path object
+
+    return_figure: Bool
+        if True, figure is returned by function
+        if False, figure is saved to disk
+
+    fname: None or str or Path object
+        optional- only if return_figure==False
         Path to save figure.
     
     Returns
     ---------
-    None
+    fig: matplotlib Figure or None
+        if return_figure == True, figure is returned
+        Otherwise, None is returned.
     
     Saves
     ---------
@@ -115,4 +122,7 @@ def agg_cm(cmlist, fname):
             a.text(j, 1 - i, '{:^5}'.format(z), ha='center', va='center', fontsize=8,
                     bbox=dict(boxstyle='round', facecolor='w', edgecolor='0', linewidth=0.75))
     fig.tight_layout()
-    fig.savefig(fname, bbox_inches='tight')
+    if return_figure:
+        return fig
+    else:
+        fig.savefig(fname, bbox_inches='tight')
