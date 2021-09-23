@@ -11,6 +11,7 @@ from src import graph_features as gf
 from pycocotools import mask as RLE
 from copy import deepcopy
 
+
 def img_to_graph(img, grain_labels):
     """
     Converts array of grain ids to a graph of connected grains.
@@ -126,13 +127,23 @@ def create_graph(path):
     """
     path = Path(path)  # forces root to be path object
     initfile = path / 'initial.dream3d'
-    statsfile = path / 'stats.h5'
 
+    statsfile = path / 'stats.h5'
     assert initfile.is_file(), f'{str(initfile.absolute())} not found!'
-    assert statsfile.is_file(), f'{str(statsfile.absolute())} not found!'
+
+    if statsfile.is_file():
+        gtype='single' # graph corresponds to single spparks simulation
+    else:
+        statsfile = path.parent / 'spparks_results'
+        stats_files = [x / 'stats.h5' for x in sorted(statsfile.glob('*')) if (x/'stats.h5').is_file]
+        assert len(stats_files), "stats.h5 file not found!"
+        gtype='repeat' # graph corresponds to multiple repeated spparks
+                    # simulations with same initial state, and repeated
+                    # growth simulations with different seeds
+
+    # for both single and repeat graphs, the initial state is the same
 
     init = h5py.File(initfile, 'r')
-    stats = h5py.File(statsfile, 'r')
 
 
 
@@ -162,14 +173,43 @@ def create_graph(path):
     # reduced representation of mobility- store as single value instead of vector of 3 elements
     grain_labels = (grain_labels_raw > 0).sum(1) - 1
 
-    timesteps = np.asarray(stats['time'])
-    # again, the first column is all 0's due to original grain indexing starting at 1
-    # shift by one element to account for zero-indexing
-    grain_sizes = np.asarray(stats['grainsize'])[:, 1:]
-
-    #TODO fix inconsistencies in naming ie grain labels vs grain ids, especially for compute_metadata()
+    # TODO fix inconsistencies in naming ie grain labels vs grain ids, especially for compute_metadata()
     G = img_to_graph(grain_ids, grain_labels)
-    G.metadata = gf.compute_metadata(grain_ids, grain_labels_raw, grain_sizes, timesteps, path.absolute().resolve())
+
+    # processing of stats.h5 is different for single and repeat graphs
+    # for single graphs, simply get trajectory of each grain and store it as metadata
+    if gtype == "single":
+        stats = h5py.File(statsfile, 'r')
+        timesteps = np.asarray(stats['time'])
+        # again, the first column is all 0's due to original grain indexing starting at 1
+        # shift by one element to account for zero-indexing
+        grain_sizes = np.asarray(stats['grainsize'])[:, 1:]
+
+        G.metadata = gf.compute_metadata(grain_ids, grain_labels_raw, grain_sizes, timesteps, path.absolute().resolve())
+        G.metadata['graph_type'] = gtype
+    # repeat graph
+    else:
+        metadata = {'trials': [], 'timesteps': [], 'grain_sizes': [], 'graph_type': 'repeat'}
+        for f in stats_files:
+            stats = h5py.File(f, 'r')
+            timesteps = np.asarray(stats['time'])
+            grain_sizes = np.asarray(stats['grainsize'])[:,1:]
+            single_metadata = gf.compute_metadata(grain_ids, grain_labels_raw,
+                                                  grain_sizes, timesteps, f.absolute().resolve())
+            # append the filename, timesteps,
+            # todo timesteps probably the same for every trial, double check this
+            metadata['trials'].append(single_metadata['path'])
+            metadata['timesteps'].append(single_metadata['timesteps'])
+            metadata['grain_sizes'].append(single_metadata['grain_sizes'])
+
+
+        # other metadata (img size, grain_types, center_id, etc) should be the same for
+        # all trials.
+        for k,v in single_metadata.items():
+            if k not in ('path','timesteps','grain_sizes'):
+                metadata[k] = v
+        G.metadata = metadata
+
     return G
 
 
@@ -201,7 +241,7 @@ class Graph(nx.DiGraph):
     def edgelist(self):
         """
         Sorted list of edge indices.
-
+]
         Returns
         -------
         edgelist: list(tuple)
@@ -398,6 +438,13 @@ class Graph(nx.DiGraph):
         """
         check to make sure all data in graph exactly matches data contained in h5 files
         """
+
+        # TODO implement this case if needed
+        gtype = self.metadata.get('graph_type', 'single')
+        if gtype != 'single':
+            print('spparks validation only available for single graphs')
+            return 0
+
         if root == "":  # default, read from metadata
             root = self.metadata['path']
 
@@ -430,6 +477,7 @@ class Graph(nx.DiGraph):
                     print("file: {}, key: {}\n\tmatch: {}".format(k, kk, match_i))
         return match
 
+    # TODO make this work for multi graph
     def to_dict(self):
         """
         Returns a json-compatible dictionary of graph nodes, edges, and metadata (ie all information needed to exactly reconstruct the graph exactly with self.from_dict()
@@ -443,6 +491,7 @@ class Graph(nx.DiGraph):
         jd: dict
             json-compatible dictionary with keys 'nodes', 'edges', 'metadata', and values contain all of the information contained in the graph.
         """
+        gtype = self.metadata.get('graph_type', 'single')
         nodes = {str(k): deepcopy(v) for k, v in self.nodes.items()}
         for k in nodes.keys():
             nodes[k]['rle']['counts'] = nodes[k]['rle']['counts'].decode('utf-8')
@@ -456,6 +505,7 @@ class Graph(nx.DiGraph):
         metadata = {}
         if self.metadata:  # if metadata is not an empty dict
             metadata = {k: deepcopy(v) for k, v in self.metadata.items()}
+
             for k, v in self.metadata.items():
                 if type(v) == np.ndarray:
                     metadata[k] = v.tolist()
@@ -598,13 +648,26 @@ def _add_neighbors_to_img(g, img, src, visited):
 
     return img
 
+class RepeatGraph(Graph):
+    """
+    Extension of Graph class for repeated trials of the initial micro
+    """
+    # read graph: different location for dream3d file
+    # otherwise, initial graph is the exact same
+    # concatenate graph metadata (only grain sizes, everything else should
+    # be the same (may be different to float tolerance, have to check)
+    # can modify create_graph() to account for this
+
 
 if __name__ == "__main__":
-    path = '/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/datasets/candidate-grains-small-v1.0.1/train/2020_11_06_12_23_candidate_grains_master-run_533.json'
-    g = Graph.from_json(path)
-    img = g.to_image()
+    path = '/home/ryan/Desktop/tempruns/399363-2021-09-20-12-00-04-290587326-candidate-grains-repeat/spparks_init'
+    G = Graph.from_spparks_out(path)
+    print(G.__repr__)
+    # path = '/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/datasets/candidate-grains-small-v1.0.1/train/2020_11_06_12_23_candidate_grains_master-run_533.json'
+    # g = Graph.from_json(path)
     # img = g.to_image()
-    # fig, ax = plt.subplots()
-    # ax.imshow(img, cmap='rainbow')
-    # plt.show()
-    # print((img == -1).sum())
+    # # img = g.to_image()
+    # # fig, ax = plt.subplots()
+    # # ax.imshow(img, cmap='rainbow')
+    # # plt.show()
+    # # print((img == -1).sum())

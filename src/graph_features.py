@@ -78,6 +78,8 @@ def compute_metadata(img, grain_labels, grain_sizes, timesteps, path):
     """
 
     grain_types = list(range(3))
+
+    # values copied from SPPARKS directly
     v1 = 0.4472135901451111
     v2 = 0.5773502588272095
     v3 = 0.8944271802902222
