@@ -186,10 +186,10 @@ def create_graph(path):
         grain_sizes = np.asarray(stats['grainsize'])[:, 1:]
 
         G.metadata = gf.compute_metadata(grain_ids, grain_labels_raw, grain_sizes, timesteps, path.absolute().resolve())
-        G.metadata['graph_type'] = gtype
+        G.metadata['gtype'] = gtype
     # repeat graph
     else:
-        metadata = {'trials': [], 'timesteps': [], 'grain_sizes': [], 'graph_type': 'repeat'}
+        metadata = {'path': [], 'timesteps': [], 'grain_sizes': [], 'gtype': 'repeat'}
         for f in stats_files:
             stats = h5py.File(f, 'r')
             timesteps = np.asarray(stats['time'])
@@ -198,15 +198,17 @@ def create_graph(path):
                                                   grain_sizes, timesteps, f.absolute().resolve())
             # append the filename, timesteps,
             # todo timesteps probably the same for every trial, double check this
-            metadata['trials'].append(single_metadata['path'])
-            metadata['timesteps'].append(single_metadata['timesteps'])
-            metadata['grain_sizes'].append(single_metadata['grain_sizes'])
-
+            #      >> timesteps are not exactly equal, but very, very close
+            # doesn't require arrays to be same size (ie if one simulation exited early for some reason)
+            # if this causes slowdown, appending can be replaced by filling fixed size numpy array later
+            metadata['path'].append(f)
+            metadata['timesteps'].append(timesteps)
+            metadata['grain_sizes'].append(grain_sizes)
 
         # other metadata (img size, grain_types, center_id, etc) should be the same for
         # all trials.
         for k,v in single_metadata.items():
-            if k not in ('path','timesteps','grain_sizes'):
+            if k not in ('path', 'timesteps', 'grain_sizes'):
                 metadata[k] = v
         G.metadata = metadata
 
@@ -396,8 +398,16 @@ class Graph(nx.DiGraph):
         return create_graph(path)
 
     def __repr__(self):
-        repr = f'Graph ({len(self.nodes)} nodes, {len(self.edges)} edges)'
+        gtype = self.metadata.get('gtype', 'single')
+        if gtype == 'repeat':
+            n_runs = len(self.metadata['path'])
+            repr = f"{gtype} graph ({n_runs} runs, {len(self.nodes)} nodes, {len(self.edges)} edges))"
+        else:
+            repr = f'{gtype} graph ({len(self.nodes)} nodes, {len(self.edges)} edges)'
         return repr
+
+    def __str__(self):
+        return self.__repr__()
 
     def copy(self):
         """
@@ -440,7 +450,7 @@ class Graph(nx.DiGraph):
         """
 
         # TODO implement this case if needed
-        gtype = self.metadata.get('graph_type', 'single')
+        gtype = self.metadata.get('gtype', 'single')
         if gtype != 'single':
             print('spparks validation only available for single graphs')
             return 0
@@ -491,7 +501,7 @@ class Graph(nx.DiGraph):
         jd: dict
             json-compatible dictionary with keys 'nodes', 'edges', 'metadata', and values contain all of the information contained in the graph.
         """
-        gtype = self.metadata.get('graph_type', 'single')
+        gtype = self.metadata.get('gtype', 'single')
         nodes = {str(k): deepcopy(v) for k, v in self.nodes.items()}
         for k in nodes.keys():
             nodes[k]['rle']['counts'] = nodes[k]['rle']['counts'].decode('utf-8')
@@ -502,18 +512,30 @@ class Graph(nx.DiGraph):
         #for k in edges.keys():
         #    edges[k]['dr'] = edges[k]['dr'].tolist()
 
-        metadata = {}
+        metadata = {'gtype': gtype}
         if self.metadata:  # if metadata is not an empty dict
             metadata = {k: deepcopy(v) for k, v in self.metadata.items()}
 
             for k, v in self.metadata.items():
+
+                #  I think this is now redundant. I had to handle cases individually
+                # so I don't think this step is repeated later.
+                # However, for the sake of not breaking anything I'll leave it in for now.
                 if type(v) == np.ndarray:
                     metadata[k] = v.tolist()
                     # self.metadata[int(k)] = np.asarray(g.edges[int(k)]['unit_vector'])
                 elif k == "grain_types":
                     metadata[k] = {kk: (vv[0], vv[1]) for kk, vv in v.items()}
                 elif k == 'path':
-                    metadata[k] = str(v)
+                    if gtype == 'single':
+                        metadata[k] = str(v)  # single path to string
+                    else:
+                        metadata[k] = [str(x) for x in v]  # list of paths to list of strings
+                elif k in ('timesteps', 'grain_sizes'):
+                    if gtype == 'repeat':
+                        metadata[k] = [x.tolist() for x in v]
+                    else:
+                        metada[k] = v.tolist()
                 else:
                     metadata[k] = v
 
@@ -532,7 +554,8 @@ class Graph(nx.DiGraph):
             path to save json file to
         """
         with open(path, 'w') as f:
-            json.dump(self.to_dict(), f)
+            jd = self.to_dict()
+            json.dump(jd, f)
 
     @staticmethod
     def from_dict(jd):
@@ -563,16 +586,24 @@ class Graph(nx.DiGraph):
         metadata = jd['metadata']
         md = {}
         if metadata:  # if metadata is not empty
+            gtype = metadata.get('gtype', 'single')
+            if gtype == 'single':  # read values for single run
+                md['timesteps'] = np.asarray(metadata['timesteps'])
+                md['grain_sizes'] = np.asarray(metadata['grain_sizes'])
+                md['path'] = Path(metadata['path'])
+            else:  # read values as lists for repeated trials
+                md['timesteps'] = [np.asarray(x) for x in metadata['timesteps']]
+                md['grain_sizes'] = [np.asarray(x) for x in metadata['grain_sizes']]
+                md['path'] = [Path(x) for x in metadata['path']]
             md['img_size'] = tuple(metadata['img_size'])
-            md['timesteps'] = np.asarray(metadata['timesteps'])
             gt = {}
             for k, v in metadata['grain_types'].items():
                 gt[k] = (v[0], v[1])
             md['grain_types'] = gt
-            md['grain_sizes'] = np.asarray(metadata['grain_sizes'])
             md['center_id'] = metadata['center_id']
             md['center_rc'] = np.asarray(metadata['center_rc'])
-            md['path'] = Path(metadata['path'])
+
+            md['gtype'] = gtype
 
         G.metadata = md
 
@@ -662,7 +693,26 @@ class RepeatGraph(Graph):
 if __name__ == "__main__":
     path = '/home/ryan/Desktop/tempruns/399363-2021-09-20-12-00-04-290587326-candidate-grains-repeat/spparks_init'
     G = Graph.from_spparks_out(path)
-    print(G.__repr__)
+    print(G.__repr__())
+    p1 = '/home/ryan/Desktop/test1.json'
+    G.to_json(p1)
+    G2 = Graph.from_json(p1)
+    p2 = '/home/ryan/Desktop/test2.json'
+    G2.to_json(p2)
+    with open(p1, 'r') as f:
+        d1 = json.loads(f.read())
+    with open(p2, 'r') as f:
+        d2 = json.loads(f.read())
+    # files are not exaclty the same because ordering is different
+    # however, we can load json files and verify that
+    # ALL of the key-value pairs match between both files
+    for k in d1.keys():
+        assert d1[k] == d2[k]
+    for k in d2.keys():
+        assert d2[k] == d1[k]
+    print(d1.keys())
+    print(d1['metadata']['gtype'])
+    print(d2['metadata']['gtype'])
     # path = '/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/datasets/candidate-grains-small-v1.0.1/train/2020_11_06_12_23_candidate_grains_master-run_533.json'
     # g = Graph.from_json(path)
     # img = g.to_image()
