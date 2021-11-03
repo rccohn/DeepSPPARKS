@@ -2,7 +2,7 @@
 Routines for computing features on standard Graph object.
 """
 import numpy as np
-from scipy.spatial.distance import cdist
+#from scipy.spatial.distance import cdist
 import pycocotools.mask as RLE
 
 
