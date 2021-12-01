@@ -597,6 +597,30 @@ class Graph(nx.DiGraph):
             G.metadata['path'] = path
         return G
 
+class ListNode:
+    def __init__(self, value=None, nxt=None):
+        """
+        Node for singly-linked list
+        Parameters
+        ----------
+        value: Object
+            value stored in list node
+        nxt: ListNode object or None
+            pointer to next node in list
+        """
+
+class LLQueue:
+    def __init__(self, head=None, tail=None):
+        """
+        Queue with linked list backend
+        Parameters
+        ----------
+        head, tail: ListNode or None
+            pointer to first (head) and last (tail) items in list, respectively,
+            or None if queue is empty
+        """
+           
+
 def _add_node_to_img(g, img, src, target):
     """
     img: image to put grains on
@@ -647,15 +671,67 @@ def _add_neighbors_to_img(g, img, src, visited):
 
     return img
 
-class RepeatGraph(Graph):
+
+def quickstats(g: Graph) -> dict:
     """
-    Extension of Graph class for repeated trials of the initial micro
+    Generates a dictionary of commonly used metrics to characterize a graph by.
+    Currently only implemented for repeat graphs (may not work for single graphs).
+
+    Stats are given in a dictinary with the following formatting:
+    {
+    fr: float
+        number fraction of red grains in the system
+    cgr: ndarray
+        n_repeat element array of candidate growth ratio values for each trial in the system
+    'size': tuple(int, int)
+        system size
+    'time': tuple(float, float, int)
+        timesteps (start, stop, number of steps)
+    }
+
+
+    Parameters
+    ----------
+    g: Graph
+        repeat graph to analyze.
+
+    Returns
+    -------
+    stats: dict
+        dictionary with formatting described above.
+
     """
-    # read graph: different location for dream3d file
-    # otherwise, initial graph is the exact same
-    # concatenate graph metadata (only grain sizes, everything else should
-    # be the same (may be different to float tolerance, have to check)
-    # can modify create_graph() to account for this
+    assert g.metadata['gtype']
+    # 0: candidate, 1: blue (low mobility) 2: red (high mobility)
+    grain_types = np.array([x['grain_type'] for x in g.nodelist])
+
+    # index of candidate grain (grain_type = 0, which is the minimum value)
+    cidx = np.argmin(grain_types)
+
+    # growth ratio of each trial. Final size/initial size of candidate grain.
+    cgr = np.array([x[-1, cidx]/x[0, cidx] for x in g.metadata['grain_sizes']])
+
+    # fraction of red grains in initial microstructure
+    fr = (grain_types == 2).sum()/len(grain_types)
+
+    # img_size
+    size = g.metadata['img_size']
+
+    # timesteps
+    t0 = g.metadata['timesteps'][0]
+    for t in g.metadata['timesteps'][1:]:
+        assert t[0] == t0[0]
+        assert t[-1] == t0[-1]
+        assert len(t) == len(t0)
+    time = (t0[0], t0[-1], len(t0))
+    results = {
+        'fr': fr,
+        'cgr': cgr,
+        'size': size,
+        'time': time
+    }
+
+    return results
 
 
 if __name__ == "__main__":
