@@ -39,40 +39,7 @@ def compute_node_features(mask, gtype):
     return features
 
 
-def compute_edge_features(labels, src, target):
-    """
-    labels: r x c int image where pixels are grain ids
-             should be centered so src is in the middle of the image
-             to prevent src or targets from being wrapped around rows or cols
-    src, target: int, source, target indecies of directed edge
-
-    properties:
-    length: centroid to centroid distance between source and target
-    unit vector: x and y components of unit vector pointing from centroid of source to
-                centroid of target
-    intersect_length (not currently used): number of pixels on source within 1 pixel distance from boundary
-    """
-
-    src_mask = labels == src
-    target_mask = labels == target
-
-    where_s = np.where(src_mask)
-    where_t = np.where(target_mask)
-
-    # (r,c) coordinate of top left pixel of each node
-    # note it is assumed that the grain in question is not 'wrapped' around the image
-    # otherwise you have to compute all possible displacements (target is above, below,
-    # left, and right of source) and select one
-
-    rc_source = np.min(where_s, axis=1)
-    rc_target = np.min(where_t, axis=1)
-    dr = rc_source - rc_target
-    features = {'dr': dr}
-
-    return features
-
-
-def compute_metadata(img, grain_labels, grain_sizes, timesteps, path):
+def compute_metadata(img, timesteps, path):
     """
     metadata
     """
@@ -95,11 +62,8 @@ def compute_metadata(img, grain_labels, grain_sizes, timesteps, path):
     metadata = {'img_size': (r, c),
                 'timesteps': timesteps,  # timesteps at which values are reported from spparks
                 'grain_types': grain_types,  # original mobilities from spparks
-                'grain_sizes': grain_sizes,  # grain size vs time from spparks
-                'center_id': center_id,  # id of grain located at center of image
                 # min row/col of grain passing through center. Used to fix absolute positions
                 # during reconstruction of the original graph
-                'center_rc': [int(rr.min()), int(cc.min())],
                 'path': path  # path to original spparks results directory
                 }
 
