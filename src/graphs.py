@@ -21,7 +21,8 @@ class Graph(nx.DiGraph):
     #     value pairs for every node and edge
     def __init__(self):
         super().__init__()
-        self._metadata = {}  # info about the original graph itself
+        self._metadata = {'subgraph_metadata': [],
+                          'subgraph_node_ranges': []}  # info about the original graph itself
 
     @property
     def metadata(self):
