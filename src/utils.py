@@ -2,8 +2,6 @@ import json
 import numpy as np
 from pathlib import Path
 
-from src.graphs import Graph
-
 def batcher(data, batch_size=3, min_size=2):
     r"""
     Split list into batches of approximately equal length.
@@ -65,60 +63,6 @@ def pyg_edgelist(g):
     """
     return np.asarray(g.edgelist).T
 
-
-def load_json_old(inpath):
-    """
-    Loads Graph from old json format
-
-    Parameters
-    ----------
-    inpath: str or Path object
-        path to old file to load
-
-    Returns
-    -------
-    G: Graph
-        loaded graph object
-    """
-    with open(inpath, 'r') as f:
-        data = json.load(f)
-
-    md_old = data['metadata']
-
-    metadata = {'img_size': md_old['img_size'],
-                'grain_types': md_old['grain_types']}
-    path = md_old['path']
-    if not type(path) == list:
-        path = [path]
-    metadata['path'] = [Path(p) for p in path]
-
-    timesteps = md_old['timesteps']
-    if not type(timesteps[0]) == list:
-        timesteps = [timesteps]
-
-    metadata['timesteps'] = [np.array(x) for x in timesteps]
-
-    grain_sizes = md_old['grain_sizes']
-    if not type(grain_sizes[0][0]) == list:
-        grain_sizes = [grain_sizes]
-    grain_sizes = [np.array(x) for x in grain_sizes]
-    G = Graph()
-    for k,v in data['nodes'].items():
-        k = int(k)
-        v['rle']['counts'] = bytes(v['rle']['counts'], 'utf-8')
-        node_features = {'grain_type': v['grain_type'],
-                         'rle': v['rle'],
-                         'grain_size': [x[:, k] for x in grain_sizes]}
-        G.add_node(k, **node_features)
-    for k in data['edges'].keys():
-        e = [int(x) for x in k.strip('()').split(', ')]
-        G.add_edge(*e)
-
-
-    G.metadata = {'subgraph_metadata': [metadata],
-                  'subgraph_node_ranges': [len(G.nodes)]}
-
-    return G
 
 if __name__ == "__main__":
     pass

@@ -2,12 +2,10 @@ import h5py
 import json
 import numpy as np
 import networkx as nx
-#import matplotlib.pyplot as plt
+
 from skimage.morphology import binary_dilation
-#import graphviz  # https://pypi.org/project/graphviz/
 from pathlib import Path, PurePath
 from src.image import roll_img
-from src import graph_features as gf
 from pycocotools import mask as RLE
 from copy import deepcopy
 
@@ -388,8 +386,14 @@ class Graph(nx.DiGraph):
 
         """
         with open(path, 'r') as f:
-            G = Graph.from_dict(json.load(f))
-        return G
+            json_dict = json.load(f)
+            # graph is 'new' format
+            if 'subgraph_metadata' in json_dict['metadata'].keys():
+                g = Graph.from_dict(json_dict)
+            # graph was saved from older format
+            else:
+                g = load_json_old(json_dict)
+        return g
 
     #  TODO make sure metadata is saved/loaded with self.{to,from}_{json,dict}
     #       Hard part: do this in a way that doesn't break a combined graph
@@ -1014,6 +1018,60 @@ def _jd2md(jd):
                 'timesteps': [np.array(x) for x in jd['timesteps']]}
     return md
 
+def load_json_old(json_dict):
+    """
+    Loads Graph from old json format
+
+    Parameters
+    ----------
+    json_dict: dict
+        result of loading file with json.load
+
+    Returns
+    -------
+    g: Graph
+        loaded graph object in 'new' format
+    """
+
+    md_old = json_dict['metadata']
+
+    metadata = {'img_size': md_old['img_size'],
+                'grain_types': md_old['grain_types']}
+
+    path = md_old['path']
+
+    if not type(path) == list:  # single graph (no repeats for initial state)
+        path = [path]
+
+    metadata['path'] = [Path(p) for p in path]
+
+    timesteps = md_old['timesteps']
+    if not type(timesteps[0]) == list:  # single graph (no repeats)
+        timesteps = [timesteps]
+
+    metadata['timesteps'] = [np.array(x) for x in timesteps]
+
+    grain_sizes = md_old['grain_sizes']
+    if not type(grain_sizes[0][0]) == list:  # single graph (no repeats)
+        grain_sizes = [grain_sizes]
+    grain_sizes = [np.array(x) for x in grain_sizes]
+    g = Graph()
+    for k,v in json_dict['nodes'].items():
+        k = int(k)
+        v['rle']['counts'] = bytes(v['rle']['counts'], 'utf-8')
+        node_features = {'grain_type': v['grain_type'],
+                         'rle': v['rle'],
+                         'grain_size': [x[:, k] for x in grain_sizes]}
+        g.add_node(k, **node_features)
+    for k in json_dict['edges'].keys():
+        e = [int(x) for x in k.strip('()').split(', ')]
+        g.add_edge(*e)
+
+
+    g.metadata = {'subgraph_metadata': [metadata],
+                  'subgraph_node_ranges': [len(g.nodes)]}
+
+    return g
 
 if __name__ == "__main__":
     path = '/home/ryan/Desktop/tempruns/399363-2021-09-20-12-00-04-290587326-candidate-grains-repeat/spparks_init'
