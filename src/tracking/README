@@ -1,0 +1,5 @@
+for making it easier to track/preserve models/features/etc used in experiments
+
+try to define a .log() method for each object to log relevant parameters, metrics, and tags to mlflow automatically
+
+consider having model.compile() similar to tensorflow/keras which can incorporate logging.

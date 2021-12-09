@@ -1,6 +1,4 @@
-import json
 import numpy as np
-from pathlib import Path
 
 def batcher(data, batch_size=3, min_size=2):
     r"""
@@ -61,7 +59,7 @@ def pyg_edgelist(g):
      #    I think it should work with replacing edgelist with g.eli
      #    but this needs to be tested
     """
-    return np.asarray(g.edgelist).T
+    return np.asarray(g.eli).T
 
 
 if __name__ == "__main__":

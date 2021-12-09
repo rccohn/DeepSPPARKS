@@ -9,13 +9,19 @@ from src.image import roll_img
 from pycocotools import mask as RLE
 from copy import deepcopy
 
-# TODO make node class to avoid storing repeated dict keys?
-#      then you can store targets and features with nodes, instead of storing node targets as metadata
-# TODO warn user when using g.nodes that g.nodes is not sorted and they probably want g.nodelist instead
+
 class Graph(nx.DiGraph):
     """
     Wraps networkx.DiGraph to add support for metadata and some convenient
     built-in functions.
+
+    Serves as the base data structure for representing an initial state and its growth trajectory.
+    Perfectly preserves initial state and growth trajectory from Spparks experiments (unless
+    it is modified ie to remove intermediate timesteps/grain sizes to save disk space.)
+
+    The Graph object should not be used as the input to ML pipelines. Instead,
+    a featurizer and target extractor should be created to extract node (and optional edge/graph)
+    features, and prediction targets.
     """
     # TODO to further reduce graph size, make node and edge features single list so you don't have to store key
     #     value pairs for every node and edge
@@ -853,11 +859,15 @@ def combine_graphs(subgraphs):
 
     return g
 
-
+# TODO fix this so it works with new graph structures
 def quickstats(g: Graph) -> dict:
     """
     Generates a dictionary of commonly used metrics to characterize a graph by.
     Currently only implemented for repeat graphs (may not work for single graphs).
+
+    This function was designed to work with single repeated graphs (ie not combined
+    with combine_graphs()). It should still work, but the formatting may be weird with
+    combined graphs.
 
     Stats are given in a dictinary with the following formatting:
     {
@@ -883,14 +893,19 @@ def quickstats(g: Graph) -> dict:
         dictionary with formatting described above.
 
     """
-    assert g.metadata['gtype']
-    if g.metadata['gtype'] == 'combined':
-        raise NotImplementedError
+    results = []  # results for each repeat of each candidate grain in each subgraph
+    nli = np.asarray(self.nli)
+
+    # get indices of each subgraph (remember edge case for first subgraph)
+
+    # iterate through nodes of each subgraph
+    # for each node, compute stats for each repeat
+
     # 0: candidate, 1: blue (low mobility) 2: red (high mobility)
     grain_types = np.array([x['grain_type'] for x in g.nodelist])
 
-    # index of candidate grain (grain_type = 0, which is the minimum value)
-    cidx = np.argmin(grain_types)
+    # index of candidate grains (grain_type = 0)
+    cidx = g.cidx
 
     # growth ratio of each trial. Final size/initial size of candidate grain.
     cgr = np.array([x[-1, cidx]/x[0, cidx] for x in g.metadata['grain_sizes']])
@@ -917,7 +932,7 @@ def quickstats(g: Graph) -> dict:
 
     return results
 
-
+# todo move to image.py? this file is getting kinda long...
 def _add_node_to_img(g, img, src, target):
     """
     img: image to put grains on
@@ -939,33 +954,6 @@ def _add_node_to_img(g, img, src, target):
     coords = coords % np.reshape(img.shape, (2, 1))
 
     img[coords[0], coords[1]] = target
-
-    return img
-
-
-# TODO depreciated? to_image() uses full-size RLE masks now...
-def _add_neighbors_to_img(g, img, src, visited):
-    neighborhoods = [(src, [n for n in g.neighbors(src)])]
-    for n in neighborhoods[0][1]:  # all of these nodes will be visited
-        visited[n] = True
-
-    while neighborhoods:  # continue while there are still neighbors
-        edgelist = neighborhoods.pop(0)  # (src, [n for n in g.neighbors(src)] if not visited[n])
-        src = edgelist[0]
-        img = roll_img(img, src)  # avoid issues from periodic boundary conditions by always working at center of image
-        while edgelist[1]:
-
-            n = edgelist[1].pop(0)  # get target node
-
-            img = _add_node_to_img(g, img, src, n,)  # add target node to graph
-
-            new_edgelist = (n, [x for x in g.neighbors(n) if not visited.get(x)])
-
-            for node in new_edgelist[1]:
-                visited[node] = True  # all of these nodes will be visited
-
-            if new_edgelist[1]:
-                neighborhoods.append(new_edgelist)
 
     return img
 
