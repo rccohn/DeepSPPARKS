@@ -565,6 +565,47 @@ class Graph(nx.DiGraph):
         if return_max:  # return max node value + 1, ie next value that can be added
             return max(mapper.values()) + 1
 
+    def split(self, reset=True):
+        """
+        Splits graph into list of its subgraph components.
+
+        Parameters
+        ----------
+        reset: bool
+            default: True
+            if True, resets node indices of each subgraph from 0:len(sg.nodes)-1
+            if False, subgraph maintains its original node indices
+
+        Returns
+        -------
+        subgraphs: list(graph)
+            list containing each individual subgraph in the graph.
+        """
+        nli = self.nli
+        ranges = self.metadata['subgraph_node_ranges']
+        # it's not guaranteed that all node keys from [range[k-1]:range[k]] exist
+        # thus we have to find an existing node in the graph
+        # to get around this, we find the largest node idx in the subgraph
+        # then we call get_subgraph() centered at this node, with no limiting
+        # radius, to get all connected nodes
+
+        # this process is repeated for each subgraph
+        i = 0  # index in nli
+        subgraphs = []  # list of subgraphs
+        for j in ranges:  # greater than largest node index in subgraph
+            while nli[i] < j - 1:  # while node
+                if i + 1 >= len(nli):
+                    break
+                i += 1
+            sg = self.get_subgraph(nli[i], r=-1)
+            if reset:
+                sg.reset_node_idx()
+
+            subgraphs.append(sg)
+
+        return subgraphs
+
+
 
 class ListNode:
     def __init__(self, value=None, nxt=None):
@@ -634,7 +675,7 @@ def img_to_graph(img, grain_labels):
     grain_labels: ndarray
         n_grain element array where values at index i indicate the class of grain with label i.
           Values should be 0, 1, or 2 and correspond to the grain's class (candidate, high, low mobility, respectively)
-
+References
     NOTE: THESE ARE NOT CURRENTLY USED. TODO UPDATE DOCSTRING. Node/edge/graph features can be updated after graph
                                                                 is created.
     compute_node_features, compute_edge_features, compute_graph_features: callable or None
@@ -893,42 +934,57 @@ def quickstats(g: Graph) -> dict:
         dictionary with formatting described above.
 
     """
+    subgraphs = g.split()  # split combined graph into subgraphs
+
     results = []  # results for each repeat of each candidate grain in each subgraph
-    nli = np.asarray(self.nli)
+    for sg in subgraphs:
 
-    # get indices of each subgraph (remember edge case for first subgraph)
+        # get indices of each subgraph (remember edge case for first subgraph)
 
-    # iterate through nodes of each subgraph
-    # for each node, compute stats for each repeat
+        # iterate through nodes of each subgraph
+        # for each node, compute stats for each repeat
 
-    # 0: candidate, 1: blue (low mobility) 2: red (high mobility)
-    grain_types = np.array([x['grain_type'] for x in g.nodelist])
+        # 0: candidate, 1: blue (low mobility) 2: red (high mobility)
+        grain_types = np.array([x['grain_type'] for x in sg.nodelist])
 
-    # index of candidate grains (grain_type = 0)
-    cidx = g.cidx
+        # index of candidate grains (grain_type = 0)
+        cidx = sg.cidx
 
-    # growth ratio of each trial. Final size/initial size of candidate grain.
-    cgr = np.array([x[-1, cidx]/x[0, cidx] for x in g.metadata['grain_sizes']])
+        # growth ratio of each trial. Final size/initial size of candidate grain.
 
-    # fraction of red grains in initial microstructure
-    fr = (grain_types == 2).sum()/len(grain_types)
 
-    # img_size
-    size = g.metadata['img_size']
+        cgr = []
+        for i in cidx: # for each candidate grain
+            node = sg.nodes[i]
+            gs = node['grain_size']
+            cidx = [x[-1]/x[0] for x in gs] # store cgr for each trial
+            cgr.append(cidx)
 
-    # timesteps
-    t0 = g.metadata['timesteps'][0]
-    for t in g.metadata['timesteps'][1:]:
-        assert t[0] == t0[0]
-        assert t[-1] == t0[-1]
-        assert len(t) == len(t0)
-    time = (t0[0], t0[-1], len(t0))
-    results = {
-        'fr': fr,
-        'cgr': cgr,
-        'size': size,
-        'time': time
-    }
+
+
+        # fraction of red grains in initial microstructure
+        fr = (grain_types == 2).sum()/len(grain_types)
+
+        # only 1 graph in each subgraph
+        md = sg.metadata['subgraph_metadata'][0]
+
+        # img_size
+        size = md['img_size']
+
+        # timesteps
+        t0 = md['timesteps'][0]
+        for t in md['timesteps'][1:]:
+            assert t[0] == t0[0]
+            assert t[-1] == t0[-1]
+            assert len(t) == len(t0)
+        time = (t0[0], t0[-1], len(t0))
+        stats = {
+            'fr': fr,
+            'cgr': cgr,
+            'size': size,
+            'time': time
+        }
+        results.append(stats)
 
     return results
 
