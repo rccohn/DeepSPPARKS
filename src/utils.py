@@ -1,4 +1,9 @@
 import numpy as np
+import os
+from pathlib import Path
+import re
+import yaml
+
 
 def batcher(data, batch_size=3, min_size=2):
     r"""
@@ -32,8 +37,8 @@ def batcher(data, batch_size=3, min_size=2):
     """
 
     batches = []
-    ldata = len(data)
-    nbatch = ldata // batch_size + int(ldata % batch_size > 0)
+    n = len(data)
+    nbatch = n // batch_size + int(n % batch_size > 0)
     for j in range(nbatch):
         i1 = j * batch_size
         i2 = i1 + batch_size
@@ -47,9 +52,12 @@ def batcher(data, batch_size=3, min_size=2):
 
 def pyg_edgelist(g):
     """
+    Converts edgelist to pytorch-geometric compatible form.
+
     Parameters
     ----------
-    None
+    g: Graph object
+        graph to extract edgelist from
 
     Returns
     ---------
@@ -61,6 +69,126 @@ def pyg_edgelist(g):
     """
     return np.asarray(g.eli).T
 
+
+def parse_params(in_path):
+    """
+    Parses parameter input yaml file for experiments.
+
+    Recognizes the following "special" entries:
+      <os-env:VAR> reads os.environ[VAR]
+      <params:key_1:...:key_n> reads params[key_1][...][key_n] from yaml file
+
+    Format of yaml file is as follows:
+    mlflow: dict
+        mlflow tracking parameters (experiment name, tracking uri, etc)
+    paths: dict
+         maps paths (raw, pre-processed, processed) to paths
+    model, optimizer: dict(list):
+        list of model and optimizer parameters to use during training. All possible
+        combinations of parameters will be used.
+    training: dict
+        other training parameters (like max training iterations in each trial
+        and number of iterations per checkpoint interval)
+
+    Parameters
+    ----------
+    in_path: str or Path object
+        path to params yaml file
+
+    Returns
+    -------
+    params: dict
+        parsed dictionary of parameters
+
+    """
+    in_path = Path(in_path)
+    with open(in_path, 'r') as f:
+        data = yaml.safe_load(f)
+    params = _parse_params(data, None)
+    if 'path' in params.keys():
+        params['path'] = _str2path(params['path'])
+    if 'paths' in params.keys():
+        params['paths'] = _str2path(params['paths'])
+    return params
+
+
+def _parse_params(params, sub_dict=None):
+    """
+    helper function for parse_params
+
+    Parameters
+    ----------
+    params: dict
+        original params dictionary
+    sub_dict: dict or None
+        dictionary that may be a value in one of the keys of params,
+        or a value of a sub_dict in params.
+        If none, then params is used.
+
+    Returns
+    ----------
+    params_update: dict
+        parameters with os and params expressions substituted
+    """
+    if sub_dict is None:
+        sub_dict = params
+
+    os_pattern = re.compile('<os-env:[^>]*>')
+    params_pattern = re.compile('<params:[^>]*>')
+
+    for k, v in sub_dict.items():
+        if type(v) == dict:
+            sub_dict[k] = _parse_params(params, v)
+        elif type(v) == str:
+            matches = [x for x in os_pattern.finditer(v)]
+            if len(matches):
+                for m in matches:
+                    g = m.group()
+                    new = g.split(':')[1][:-1]  # remove trailing >
+                    v = v.replace(g, os.environ[new])
+
+            matches = [x for x in params_pattern.finditer(v)]
+            if len(matches):
+                for m in matches:
+                    g = m.group()
+                    new = g.split(':')[1:]
+                    new[-1] = new[-1][:-1]  # remove trailing >
+
+                    d = params
+                    for n in new:
+                        d = d[n]
+                    v = v.replace(g, d)
+
+            sub_dict[k] = v
+
+        else:
+            sub_dict[k] = v
+
+    return sub_dict
+
+
+def _str2path(v):
+    """
+    Helper function to convert paths in params from string to Path object
+
+    Parameters
+    ----------
+    v: None, String, or dict
+        should be value of params['path'] after parsing
+
+    Returns
+    -------
+    vpath: None, Path, or dict
+        new
+
+    """
+    t = type(v)
+    if t is None:
+        return
+    elif t == str:
+        return Path(v)
+    elif t == dict:
+        return {k: _str2path(x) for k, x in v.items()}
 
 if __name__ == "__main__":
     pass

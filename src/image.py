@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from skimage.morphology import binary_dilation
 
+
 def img_from_output(path, enhance_edges=True, ):
     r"""
     Read SPPARKS meso input/output files and build an image where the candidate
@@ -70,7 +71,7 @@ def img_from_output(path, enhance_edges=True, ):
     # is 0 for boundary, 1/3 for low mobility, 2/3 for high mobility, and 1 for
     # candidate grain. Ie grayscale image.
 
-    gids = roll_img(gids, 1.0) # center the grain in the image
+    gids = roll_img(gids, 1.0)  # center the grain in the image
 
     return gids
 
@@ -99,7 +100,7 @@ def roll_img(img, i):
     img: ndarray
         r x c integer numpy array where each element is the grain ID corresponding to the pixel
 
-    i: int
+    i: int, float
         index of grain in *img* to center
 
     Returns

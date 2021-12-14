@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import mlflow
 
 def pretty_cm(cm, labelnames, cscale=0.6, ax0=None, fs=6, cmap='cool'):
     """
@@ -76,16 +77,18 @@ def agg_cm(cmlist, return_figure=True, fpath=None):
     
     Parameters
     ----------
-    cmlist: list-like
+    cmlist: list-like, or dict
         list-like structure containing confusion matrices in sklearn format
         (sklearn.metrics.confusion_matrix(y_true, y_predict)
-         for the training, validation, and test sets respectively.
+         for the training, validation, and [optional test] sets respectively.
+         if dict, keys should be ('train','val','test') and values should
+         be the corresponding confusion matrix
 
     return_figure: Bool
         if True, figure is returned by function
         if False, figure is saved to disk
 
-    fname: None or str or Path object
+    fpath: None or str or Path object
         optional- only if return_figure==False
         Path to save figure.
     
@@ -100,29 +103,72 @@ def agg_cm(cmlist, return_figure=True, fpath=None):
     cm_fig: image
         visualized confusion matrices saved to fname
     """
-    
-    fig, ax = plt.subplots(1,3, sharey=True, dpi=300, facecolor='w', figsize=(4,2))
+    if type(cmlist) == dict:
+        cmlist = [cmlist['train'], cmlist['val'], cmlist.get('test', None)]
+        cmlist = [x for x in cmlist if x is not None]  # remove test if it is not in dict
+    subsets = ['Train', 'Valid', 'Test'][:len(cmlist)]
+    fig, ax = plt.subplots(1, len(cmlist), sharey=True, dpi=300,
+                           facecolor='w', figsize=(4/3*len(cmlist), 2))
     a = ax[0]
-    a.set_yticks([0,1])
+    a.set_yticks([0, 1])
     a.set_yticklabels(['AGG', 'NGG'], fontsize=8)
     a.set_ylabel('True value', fontsize=8)
-    for a, cm, title in zip(ax,cmlist,['Training','Validation','Test']):
-        a.axis([-0.5,1.5,-0.5,1.5])
+    for a, cm, title in zip(ax, cmlist, subsets):
+        a.axis([-0.5, 1.5, -0.5, 1.5])
         a.set_aspect(1)
-        #a.plot([0.5,0.5],[-0.5,1.5], '-k', linewidth=1)
-        #a.plot([-0.5,1.5],[0.5,0.5], '-k', linewidth=1)
+        # a.plot([0.5,0.5],[-0.5,1.5], '-k', linewidth=1)
+        # a.plot([-0.5,1.5],[0.5,0.5], '-k', linewidth=1)
         a.set_xticks([0,1])
         a.set_xticks([0.5], minor=True)
         a.set_yticks([0.5], minor=True)
-        a.set_xticklabels(['NGG','AGG'],fontsize=8)
+        a.set_xticklabels(['NGG', 'AGG'], fontsize=8)
         a.set_xlabel('Predicted Value', fontsize=8)
         a.set_title(title, fontsize=8)
         a.grid(which='minor', color='0')
         for (i, j), z in np.ndenumerate(cm):
             a.text(j, 1 - i, '{:^5}'.format(z), ha='center', va='center', fontsize=8,
-                    bbox=dict(boxstyle='round', facecolor='w', edgecolor='0', linewidth=0.75))
+                   bbox=dict(boxstyle='round', facecolor='w', edgecolor='0', linewidth=0.75))
     fig.tight_layout()
     if return_figure:
         return fig
     else:
-        fig.savefig(fname, bbox_inches='tight')
+        fig.savefig(fpath, bbox_inches='tight')
+
+
+def train_curve(iters, train_acc, train_loss, val_acc, val_loss, savepath):
+    """
+    Generate training/validation loss/accuracy vs training iterations curve.
+    Saves to disk and logs as mlflow artifact.
+
+    Parameters
+    ----------
+    iters, train_acc, train_loss, val_acc, val_loss: ndarray
+        array containing number of iterations at each checkpoint,
+        training accuracy, training loss, validation accuarcy, and validation loss
+        at each checkpoint
+    savepath: Path
+        path to save and log mlflow artifact with
+
+    Returns
+    -------
+    None
+    """
+    c1, c2 = (0.545, 0.168, 0.886), (0.101, 0.788, 0.219)  # line rgm colors
+    fig, ax = plt.subplots(1,2, dpi=150, figsize=(6, 2.5), facecolor='w')
+
+    a = ax[0]  # subplot for losses
+    a.plot(iters, train_loss, ':*', color=c2, label='train')
+    a.plot(iters, val_loss, '-.+', color=c1, label='val')
+    a.set_xlabel('iterations')
+    a.set_ylabel('loss')
+
+    a = ax[1]
+    a.plot(iters, train_acc, ':+', color=c2, label='train')
+    a.plot(iters, val_acc, '-.*', color=c1, label='val')
+    a.set_xlabel('iterations')
+    a.set_ylabel('accuracy')
+    a.legend()
+    fig.tight_layout()
+    fig.savefig(savepath, bbox_inches='tight')
+    mlflow.log_artifact(savepath)
+    return
