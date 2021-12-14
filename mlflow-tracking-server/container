@@ -1,0 +1,29 @@
+# !/bin/bash
+
+# either run ./container build, delete, or run
+CNAME="rccohn/mlflow-tracking-server-1.21.0:latest"
+
+for arg in "$@"
+do
+	case $arg in
+		-b | --build | build)
+		echo "building container"
+		docker build -t ${CNAME} .
+		shift
+		;;
+		esac
+	case $arg in
+		-d| --delete | delete)
+		echo "deleting container"
+		docker rmi --force ${CNAME} 
+		shift
+		;;
+		esac
+	case $arg in
+		-r | --run | run)
+		echo "running container"
+		docker run --rm -it --name mlflow-server  ${CNAME}
+		shift
+		;;
+		esac
+done
