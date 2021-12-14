@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
 import mlflow
 
 def pretty_cm(cm, labelnames, cscale=0.6, ax0=None, fs=6, cmap='cool'):
@@ -153,6 +154,7 @@ def train_curve(iters, train_acc, train_loss, val_acc, val_loss, savepath):
     -------
     None
     """
+    savepath = Path(savepath)
     c1, c2 = (0.545, 0.168, 0.886), (0.101, 0.788, 0.219)  # line rgm colors
     fig, ax = plt.subplots(1,2, dpi=150, figsize=(6, 2.5), facecolor='w')
 
@@ -170,5 +172,5 @@ def train_curve(iters, train_acc, train_loss, val_acc, val_loss, savepath):
     a.legend()
     fig.tight_layout()
     fig.savefig(savepath, bbox_inches='tight')
-    mlflow.log_artifact(savepath)
+    mlflow.log_artifact(str(savepath.absolute()))
     return
