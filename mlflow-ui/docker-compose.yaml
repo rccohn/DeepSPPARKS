@@ -1,0 +1,67 @@
+#  environment variables used in compose file are stored in .env
+# docker-compose looks for .env by default, or you can
+# use docker-compose --env-file <environment file> --file <docker-compose file>
+
+version: "3.8" 
+services:
+  gcloud-sql-auth-proxy:  # connect to gcp backend
+    image: ${SQL_AUTH_IMAGE}  # image containing sql proxy
+# for now, host networking (container shares networking with host machine)
+# is needed. eventually I might be able to figure out how to get this 
+# working without exposing all ports (using expose or ports keywords)
+    network_mode: "host" 
+# important: google documentation says to use -v (ie volume) when 
+# mounting service account key. THIS DOES NOT WORK. Instead, 
+# an explicit bind mount is needed.
+
+    volumes:  # mount service account authorization key to container
+     - type: bind
+       source: ${SERVICE_ACCOUNT_KEY} # path to account json credentials
+       target: /config
+       read_only: true
+
+    entrypoint: # command to run gcp sql proxy
+     - /cloud_sql_proxy 
+     - -credential_file=/config
+     # note that postgres default port is 5432. If your host machine has 
+     # postgres already running, 5432 will already be occupied,
+     # so instead we use 5433
+     # gcp sql instance connection name, address/port on host
+     - -instances=${INSTANCE_CONNECTION}=tcp:127.0.0.1:5433
+    
+  mlflow-server:
+    depends_on:  # need to start sql auth proxy first, otherwise
+    # mlflow server will error out after not being able to connect to db
+      - gcloud-sql-auth-proxy
+    image: ${MLFLOW_IMAGE} # image containing mlflow, google-storage
+    network_mode: "host" # again, eventually figure out how to remove host
+    volumes: # mount service key to container
+     - type: bind
+       source: ${SERVICE_ACCOUNT_KEY}
+       target: /config
+       read_only: true
+    environment:  # needed to use SA key for authorization
+      - GOOGLE_APPLICATION_CREDENTIALS=/config
+    entrypoint: # command to run mlflow ui or server
+      - mlflow 
+      - ${MLFLOW_OPTION}  # "ui" for veiwing results or "server" for tracking experiments
+      - --host=127.0.0.1 
+      - --port=5000
+      - --backend-store-uri
+      - ${MLFLOW_BACKEND_URI} # postgres+psycopg2://<user>:<password>@host(127.0.0.1:5433)/db-name
+      - --default-artifact-root
+      - ${MLFLOW_ARTIFACT_ROOT} # gs://<bucket>/path/to/artifacts
+
+# TODO later
+#  - add service account key as secret
+#  - remove host networking, only expose needed ports on host machine
+#  - alternatively, network ml server container to cloud sql auth container directly
+# 
+#secrets:
+#  sa_key:
+#    file: ./sa_key.json
+
+#    secrets:
+#      - source: sa_key
+#        target: /sa_key.json
+
