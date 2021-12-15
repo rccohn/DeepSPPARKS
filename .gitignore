@@ -1,1 +1,3 @@
 *AFRL_AGG/ # AFRL_AGG/ is in a separate repo: git@github.com:rccohn/AFRL_AGG.git
+mlflow-ui/.env
+mlflow-ui/sa_key.json
