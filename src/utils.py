@@ -142,8 +142,9 @@ def _parse_params(params, sub_dict=None):
             if len(matches):
                 for m in matches:
                     g = m.group()
-                    var = g.strip('$').strip('{}')  # extract varialbe
+                    new = g.strip('$').strip('{}') # extract varialbe name
                     v = v.replace(g, os.environ[new])
+            
             sub_dict[k] = v
 
         else:
