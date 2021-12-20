@@ -74,9 +74,7 @@ def parse_params(in_path):
     """
     Parses parameter input yaml file for experiments.
 
-    Recognizes the following "special" entries:
-      <os-env:VAR> reads os.environ[VAR]
-      <params:key_1:...:key_n> reads params[key_1][...][key_n] from yaml file
+    Substitutes shell environment variables (ie $x, ${x}) where appropriate
 
     Format of yaml file is as follows:
     mlflow: dict
@@ -133,32 +131,19 @@ def _parse_params(params, sub_dict=None):
     if sub_dict is None:
         sub_dict = params
 
-    os_pattern = re.compile('<os-env:[^>]*>')
-    params_pattern = re.compile('<params:[^>]*>')
+    # regex for matching environment variables
+    env_var_pattern = re.compile(r'\${?[a-zA-Z]+[a-zA-z0-9_]*}?')
 
     for k, v in sub_dict.items():
         if type(v) == dict:
             sub_dict[k] = _parse_params(params, v)
         elif type(v) == str:
-            matches = [x for x in os_pattern.finditer(v)]
+            matches = [x for x in env_var_pattern.finditer(v)]
             if len(matches):
                 for m in matches:
                     g = m.group()
-                    new = g.split(':')[1][:-1]  # remove trailing >
+                    var = g.strip('$').strip('{}')  # extract varialbe
                     v = v.replace(g, os.environ[new])
-
-            matches = [x for x in params_pattern.finditer(v)]
-            if len(matches):
-                for m in matches:
-                    g = m.group()
-                    new = g.split(':')[1:]
-                    new[-1] = new[-1][:-1]  # remove trailing >
-
-                    d = params
-                    for n in new:
-                        d = d[n]
-                    v = v.replace(g, d)
-
             sub_dict[k] = v
 
         else:
