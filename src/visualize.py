@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 import mlflow
 
+
 def pretty_cm(cm, labelnames, cscale=0.6, ax0=None, fs=6, cmap='cool'):
     """
     Generates a pretty-formated confusion matrix for convenient visualization.
@@ -72,7 +73,7 @@ def pretty_cm(cm, labelnames, cscale=0.6, ax0=None, fs=6, cmap='cool'):
         return ax
 
 
-def agg_cm(cmlist, return_figure=True, fpath=None):
+def agg_cm(cmlist, return_figure=True, fpath=None, artifact_path=None):
     """
     Display confusion matrix for train, validation, and test performance and save to disk.
     
@@ -87,12 +88,17 @@ def agg_cm(cmlist, return_figure=True, fpath=None):
 
     return_figure: Bool
         if True, figure is returned by function
-        if False, figure is saved to disk
 
     fpath: None or str or Path object
-        optional- only if return_figure==False
-        Path to save figure.
-    
+        if None, figure is not saved to disk or logged as artifact
+        Otherwise, Path to save figure to.
+
+    artifact_path: str or None
+        if None, figure is not logged as artifact
+        else:
+         - fpath must not be none
+         - if str, path in artifact directory to log artifact to with mlflow.log_artifact
+
     Returns
     ---------
     fig: matplotlib Figure or None
@@ -130,13 +136,17 @@ def agg_cm(cmlist, return_figure=True, fpath=None):
             a.text(j, 1 - i, '{:^5}'.format(z), ha='center', va='center', fontsize=8,
                    bbox=dict(boxstyle='round', facecolor='w', edgecolor='0', linewidth=0.75))
     fig.tight_layout()
+
+    if fpath is not None:
+        fig.savefig(fpath, bbox_inches='tight')
+        if artifact_path is not None:
+            mlflow.log_artifact(str(fpath.absolute()), artifact_path)
+
     if return_figure:
         return fig
-    else:
-        fig.savefig(fpath, bbox_inches='tight')
 
 
-def train_curve(iters, train_acc, train_loss, val_acc, val_loss, savepath):
+def train_curve(iters, train_acc, train_loss, val_acc, val_loss, fpath, artifact_path=None):
     """
     Generate training/validation loss/accuracy vs training iterations curve.
     Saves to disk and logs as mlflow artifact.
@@ -147,16 +157,23 @@ def train_curve(iters, train_acc, train_loss, val_acc, val_loss, savepath):
         array containing number of iterations at each checkpoint,
         training accuracy, training loss, validation accuarcy, and validation loss
         at each checkpoint
-    savepath: Path
+    fpath: Path
         path to save and log mlflow artifact with
+
+    artifact_path: str or None
+        if None, figure is not logged as artifact
+        else:
+         - fpath must not be none
+         - if str, path in artifact directory to log artifact to with mlflow.log_artifact
+
 
     Returns
     -------
     None
     """
-    savepath = Path(savepath)
+    fpath = Path(fpath)
     c1, c2 = (0.545, 0.168, 0.886), (0.101, 0.788, 0.219)  # line rgm colors
-    fig, ax = plt.subplots(1,2, dpi=150, figsize=(6, 2.5), facecolor='w')
+    fig, ax = plt.subplots(1, 2, dpi=150, figsize=(6, 2.5), facecolor='w')
 
     a = ax[0]  # subplot for losses
     a.plot(iters, train_loss, ':*', color=c2, label='train')
@@ -171,6 +188,7 @@ def train_curve(iters, train_acc, train_loss, val_acc, val_loss, savepath):
     a.set_ylabel('accuracy')
     a.legend()
     fig.tight_layout()
-    fig.savefig(savepath, bbox_inches='tight')
-    mlflow.log_artifact(str(savepath.absolute()))
+    fig.savefig(fpath, bbox_inches='tight')
+    if artifact_path is not None:
+        mlflow.log_artifact(str(fpath.absolute()), artifact_path)
     return

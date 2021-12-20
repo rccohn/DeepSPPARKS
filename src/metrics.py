@@ -55,6 +55,8 @@ def log_classification_report(gt, yp, target_names, label):
 
     cr = classification_report(gt, yp, target_names=target_names,
                                output_dict=True, zero_division=0)
+
+    #  unpack metrics for each class (ie train-precision-NGG, val-precision-AGG)
     cr_final = {}
     for k, v in cr.items():
         if type(v) == dict:
