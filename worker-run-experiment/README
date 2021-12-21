@@ -1,0 +1,24 @@
+Files for running containerized mlflow experiments.
+
+run_experiment.sh is the file used to:
+  - read environment variables (dataset location, ip of mlflow server, etc)
+  - start the docker container used to run an experiment
+  - copy experiment files into container, mount dataset to container
+  - run the experiment
+
+In this context, an experiment is a directory which contains
+AT LEAST the following files:
+  - .env
+  - start.sh
+
+But will most likely have other files as well (such as a python
+script to train/evaluate a model)
+
+.env defines environment variables that are used. Some of the variables
+are read by run_experiment.sh, and the rest are passed to the container
+that is used to run the experiment.
+
+start.sh is the script that will run the experiment. It can be as simple as
+"python my_script.py", but provides additional flexibility in case you 
+want to incorporate other elements into the experiment.
+

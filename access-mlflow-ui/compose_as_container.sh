@@ -9,7 +9,7 @@ COMPOSE_IMAGE=docker/compose:1.29.2
 
 # echo $COMPOSE_IMAGE
 
-alias doco='docker run -it --rm --network="host" \
+alias doco='docker run -itd --rm --network="host" \
 	-v /var/run/docker.sock:/var/run/docker.sock \
 	-v "$PWD:$PWD" \
 	-w="$PWD" \
