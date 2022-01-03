@@ -20,7 +20,7 @@ fi
 
 for f in 'start.sh' '.env';
 do
-  if [ ! -f $INPUT/run_experiment.sh ]; then
+  if [ ! -f ${INPUT}/${f}.sh ]; then
     echo "experiment must have ${f}!"
     exit
   fi
@@ -57,8 +57,8 @@ echo container started: $CID # verify container started correctly
 docker exec $CID bash -c 'echo "verifying gpu access"  && nvidia-smi' # should show gpu name
 sleep 2
 docker exec $CID bash -c 'echo $CONTAINER_DATASET'
-docker exec $CID bash -c 'echo running /root/exp/run_experiment.sh'
-docker exec $CID bash -c 'cd /root/exp/ && bash "run_experiment.sh"'
+docker exec $CID bash -c 'echo running /root/exp/start.sh'
+docker exec $CID bash -c 'cd /root/exp/ && bash "start.sh"'
 echo "stopping container"
 CID=$(docker stop $CID)
 # TODO poweroff if needed # remember mlflow server also needs to be shut down

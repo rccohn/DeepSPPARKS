@@ -13,7 +13,10 @@ services:
 # important: google documentation says to use -v (ie volume) when 
 # mounting service account key. THIS DOES NOT WORK. Instead, 
 # an explicit bind mount is needed.
-
+    # NOTE: on a gcp instance already authenticated with a service account
+    # credentials are not needed. In this case, you can remove the 
+    # lines to mount and reference the credential file in the cloud sql 
+    # auth proxy
     volumes:  # mount service account authorization key to container
      - type: bind
        source: ${SERVICE_ACCOUNT_KEY} # path to account json credentials
@@ -21,13 +24,14 @@ services:
        read_only: true
 
     entrypoint: # command to run gcp sql proxy
-     - /cloud_sql_proxy 
+     - /cloud_sql_proxy
+     - -enable_iam_login
      - -credential_file=/config
      # note that postgres default port is 5432. If your host machine has 
      # postgres already running, 5432 will already be occupied,
      # so instead we use 5433
      # gcp sql instance connection name, address/port on host
-     - -instances=${INSTANCE_CONNECTION}=tcp:127.0.0.1:5433
+     - -instances=${INSTANCE_CONNECTION}=tcp:0.0.0.0:${PPORT}
     
   mlflow-server:
     depends_on:  # need to start sql auth proxy first, otherwise
@@ -45,8 +49,8 @@ services:
     entrypoint: # command to run mlflow ui or server
       - mlflow 
       - ${MLFLOW_OPTION}  # "ui" for veiwing results or "server" for tracking experiments
-      - --host=127.0.0.1 
-      - --port=5000
+      - --host=0.0.0.0
+      - --port=${MLFLOW_PORT}
       - --backend-store-uri
       - ${MLFLOW_BACKEND_URI} # postgres+psycopg2://<user>:<password>@host(127.0.0.1:5433)/db-name
       - --default-artifact-root

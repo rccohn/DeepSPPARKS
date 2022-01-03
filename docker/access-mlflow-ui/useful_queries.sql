@@ -2,7 +2,30 @@
 SELECT step, value AS val_loss FROM metrics WHERE metrics.key='val_loss' AND
 metrics.run_uuid='0b09d59f2f4d48fda90f578bdfe2c855' ORDER BY step LIMIT 5;
 
+-- \dt: psql display all tables
+-- \du: psql display all roles/attributes
 
+
+-- remember: to create roles, you have to be logged in
+-- to an account with permission either directly 
+-- or in the SQL auth proxy. Admin privileges
+-- will not work if proxy is authorized with 
+-- a non admin account!
+
+-- create new role with login permission
+CREATE ROLE <role> WITH LOGIN;
+
+-- enable role to login, if needed
+ALTER ROLE <role> WITH LOGIN;
+
+-- add account to group
+GRANT <group> TO <account>;
+
+-- add permissions to role 
+GRANT ALL PRIVILEGES ON DATABASE <db> TO <role_name>;
+
+-- grant all permissions on individual db
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO <role>;
 
 -- get multiple metrics from run
 
