@@ -18,19 +18,19 @@ if [ -z $INPUT ]; then
 	exit
 fi
 
-for f in 'start.sh' '.env';
-do
-  if [ ! -f ${INPUT}/${f}.sh ]; then
-    echo "experiment must have ${f}!"
-    exit
-  fi
-done
+f="start.sh"
+if [ ! -f ${INPUT}/${f} ]; then
+  echo "experiment must have ${f}!"
+  exit
+fi
+
 
 # docker mounts require absolute path, convert argument 1 to absolute
 EXP=$( realpath $INPUT) # path to experiment (directory includes run_experiment.sh and other files)
 
 # load environment variables from experiment
-source ${EXP}/.env # defines dataset name, tracking uri, paths on host/container, etc
+ENV_FILE=$( dirname -- ${BASH_SOURCE[0]} )/.env # defines dataset name, tracking uri, paths on host/container, etc
+source ${ENV_FILE}
 
 # if processed_data directory does not exist, create it
 # (if it does exist, it is left alone, not overwritten)
@@ -47,7 +47,7 @@ mkdir -p ${HOST_PROCESSED}
 echo "starting container ${DOCKER_IMAGE}"
 CID=$( docker run -itd  --rm --name experiment-run \
 	 --gpus all `#enable gpu` \
-	 --env-file ${INPUT}/.env `#pass env variables to container` \
+	 --env-file ${ENV_FILE} `#pass env variables to container` \
 	 --mount type=bind,source=${EXP},target=${CONTAINER_EXP},readonly`# mount experiment directory` \
 	 --mount type=bind,source=${HOST_DATASET},target=${CONTAINER_DATASET},readonly `# mount dataset` \
 	 --mount type=bind,source=${HOST_PROCESSED},target=${CONTAINER_PROCESSED} `#mount processed data` \

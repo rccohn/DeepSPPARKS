@@ -42,22 +42,26 @@ def crop_img(img, newr, newc):
 
 
 class Dataset:
-    def __init__(self, raw_root, processed_root, crop, name=None, log=True):
-        self.raw_root = Path(raw_root)
-        self.processed_root = Path(processed_root)  # contains npz files that can be used as X and y for SVM
-
-        if name is None:
-            self.dataset_name = self.raw_root.name
-        else:
-            self.dataset_name = name
+    def __init__(self, raw_root, processed_root, crop, dataset_name, log=True):
+        self.raw_root = Path(raw_root)  # path to directory containing dataset folder
+        self.processed_root = Path(processed_root)  # root directory to save processed data in
+        self.dataset_name = dataset_name
         self.feature_name = "imagenet-tfkeras-vgg16-fc1"
-        self.target_name = "candidate_grain_thresh_cgr>=10"
+        self.target_name = "candidate_grain_thresh_cgr_ge_10"
         self.class_labels = ("Normal grain growth", "Abnormal grain growth")
         self.train = None
         self.val = None
         self.test = None
         self.featurizer = None
         self.crop = crop  # whether image will be cropped during processing to focus on candidate grain
+        self._raw_path = self.raw_root / self.dataset_name  # full path to raw data
+        # full path to processed data: root/dataset_name/feature_name/target_name
+        if crop:
+            crop_str = "crop"
+        else:
+            crop_str = "no_crop"
+        self._processed_path = Path(self.processed_root, self.dataset_name, 
+                self.feature_name, crop_str, self.target_name)
 
         if log:
             self._log()
@@ -67,13 +71,13 @@ class Dataset:
         Loads existing processed data to self.{train, val, test}
         """
         for filename in ('train', 'val', 'test'):
-            assert Path(self.processed_root, '{}.npz'.format(filename)).is_file()
+            assert Path(self._processed_path, '{}.npz'.format(filename)).is_file()
 
-        train = np.load(Path(self.processed_root, 'train.npz'))
+        train = np.load(Path(self._processed_path, 'train.npz'))
         self.train = {'X': train['X'], 'y': train['y']}
-        val = np.load(Path(self.processed_root, 'val.npz'))
+        val = np.load(Path(self._processed_path, 'val.npz'))
         self.val = {'X': val['X'], 'y': val['y']}
-        test = np.load(Path(self.processed_root, 'test.npz'))
+        test = np.load(Path(self._processed_path, 'test.npz'))
         self.test = {'X': test['X'], 'y': test['y']}
 
     def _log(self):
@@ -95,12 +99,12 @@ class Dataset:
             except AssertionError:  # if any files are not found, re-process whole dataset
                 print('Processed data not found, processing data now.')
 
-        os.makedirs(self.processed_root, exist_ok=True)
+        os.makedirs(self._processed_path, exist_ok=True)
 
         if vgg16_path is None:
             vgg16 = VGG16(include_top=True, weights="imagenet")
         else:
-            vgg16 = load_model(vgg16_path)
+            vgg16 = VGG16(include_top=True, weights=vgg16_path)
         # preprocess inputs: normalize by rgb mean [0.485 0.456 0.406]
         # and standard deviation [0.229, 0.224, 0.225], or equivalent based on format of images
         fc1_extractor = Model(inputs=vgg16.inputs, outputs=vgg16.get_layer('fc1').output)
@@ -110,19 +114,20 @@ class Dataset:
         fc1_extractor.compile('sgd', 'categorical_crossentropy', ['accuracy'])
         self.featurizer = fc1_extractor
         if log_featurizer:
-            self.featurizer.save('featurizer.h5')
-            mlflow.log_artifact('featurizer.h5', artifact_path='models')
+            feat_path = Path(artifact_path, 'featurizer.h5')
+            self.featurizer.save(feat_path)
+            mlflow.log_artifact(str(feat_path), artifact_path='models')
 
         # for mapping color of grain in image to const value
         mapper = {(255, 255, 255): 1.,  # candidate grain: highest signal
                   (106, 139, 152): 1 / 3,  # blue grain: low signal
                   (151, 0, 0): 2 / 3,  # red grain: medium signal
                   (0, 0, 0,): 0.}  # grain boundaries: 0 signal
-
+        
         for subset in keys:  # train, val, test
 
             # use sort to keep order consistent --> easier to look at individual samples
-            files = sorted((self.raw_root / subset).glob('*.json'))
+            files = sorted((self._raw_path / subset).glob('*.json'))
             n = len(files)
             checkpoint = (0, n//2, n-1)  # index to save sample images for verification
             features = np.zeros((len(files), 4096), float)  # x data
@@ -152,9 +157,10 @@ class Dataset:
                 else:  # resize image to get to 224x224
                     imgray = skimage.transform.resize(imgray, (224, 224))  # imagenet size for vgg16
                 imgray = skimage.img_as_ubyte(imgray)  # vgg16 input expects ubyte images (pixels are int (0,255))
-                savepath = Path(artifact_path, '{}-{}-{}-processed.png'.format(subset, i, f.stem))
-                skimage.io.imsave(savepath, imgray)
-                mlflow.log_artifact(savepath, "sample-images")
+                if i in checkpoint:
+                    savepath = Path(artifact_path, '{}-{}-{}-processed.png'.format(subset, i, f.stem))
+                    skimage.io.imsave(savepath, imgray)
+                    mlflow.log_artifact(str(savepath), "sample-images")
                 # vgg16 takes array of images with 3 color channels
                 imgray = np.expand_dims(np.stack([imgray for _ in range(3)], axis=2), axis=0)
                 # subtract mean, divide by stdev
@@ -166,4 +172,4 @@ class Dataset:
 
             data = {'X': features, 'y': targets}
             self.__setattr__(subset, data)
-            np.savez(self.processed_root / '{}.npz'.format(subset), **data)
+            np.savez(self._processed_path / '{}.npz'.format(subset), **data)

@@ -20,28 +20,31 @@ def main():
     print('parsing params')
     params = parse_params('params.yaml')
     paths = params['paths']
-
-    print('creating experiment dirs')
-    for p in (paths['processed_no_crop'], paths['processed_crop'], paths['artifact']):
-        if not p.is_dir():
-            os.makedirs(p, exist_ok=True)
+    
+    for p in (paths['artifact'], paths['processed']):
+        os.makedirs(p, exist_ok=True)
 
     print('configuring MLflow')
     mlflow.set_tracking_uri(params['mlflow']['tracking_uri'])
     mlflow.set_experiment(params['mlflow']['experiment_name'])
-
-    for crop, processed_path in enumerate((paths['processed_no_crop'], paths['processed_crop'])):
+    
+    pretrained_model_path = 'vgg16_weights_tf_dim_ordering_tf_kernels.h5'
+    assert Path(pretrained_model_path).is_file()
+    for crop in (0, 1):  # False, True
         with mlflow.start_run(nested=False):
             print('logging experiment files')
-
+            mlflow.log_param('crop', crop)
             # log experiment files
             for f in Path(__file__).parent.glob('*'):
                 if not f.name.startswith('.') and f.suffix in ('.py', '.sh', '.yaml', '.yml'):
                     mlflow.log_artifact(str(f.absolute()), 'source')
 
-            dataset = Dataset(paths['raw_root'], processed_path, bool(crop), params['mlflow']['dataset_name'])
-            dataset.process(vgg16_path='vgg16_weights_tf_dim_ordering_tf_kernels.h5',
-                            artifact_path=paths['artifact'], log_featurizer=True)
+            dataset = Dataset(paths['dataset'],
+                              paths['processed'],
+                              crop,
+                              params['mlflow']['dataset_name'])
+            dataset.process(vgg16_path=pretrained_model_path,
+                            artifact_path=paths['artifact'], force=True, log_featurizer=True)
             X_train_raw = dataset.train['X']
             for whiten, whiten_label in enumerate(('no_whiten', 'whiten')):
                 with mlflow.start_run(nested=True):
@@ -50,17 +53,17 @@ def main():
                     pca.fit(X_train_raw)
                     fname = paths['artifact'] / 'pca-{}.joblib'.format(whiten_label)
                     joblib.dump(pca, fname)
-                    mlflow.log_artifact(fname, 'models')
-                    ## variance vs components plot
+                    mlflow.log_artifact(str(fname), 'models')
+                    # variance vs components plot
                     pca_var = pca.explained_variance_ratio_.cumsum()
                     # save figure/log as artifact to /figures
                     fig, ax = plt.subplots(dpi=150)
-                    ax.plot(range(len(pca_var)), pca_var, '-k')
-                    ax.plot(range(len(pca_var)), pca.explained_variance_ratio_, '-.k')
+                    ax.plot(range(1,len(pca_var)+1), pca_var, '-k')
+                    ax.plot(range(1,len(pca_var)+1), pca.explained_variance_ratio_, '-.k')
                     fig.tight_layout()
                     figpath = paths['artifact'] / 'pca-{}-variance.png'.format(whiten_label)
                     fig.savefig(figpath, bbox_inches='tight')
-                    mlflow.log_artifact(figpath, 'figures')
+                    mlflow.log_artifact(str(figpath), 'figures')
 
                     # data
                     X_train_full = pca.transform(X_train_raw)
@@ -106,6 +109,10 @@ def main():
                     pd.DataFrame(data=results, columns=headers).to_csv(fpath)
                     mlflow.log_artifact(str(fpath.absolute()))
 
+                    model_path = paths['artifact'] / "best_model.joblib"
+                    joblib.dump(best_model, model_path)
+                    mlflow.log_artifact(str(model_path), 'models')
+
                     # evaluate best model on test set
                     # log metrics, confusion matrices, acc vs c plot (for each number of components?)
                     X_train = X_train_full[:, :best_n_components]
@@ -120,10 +127,9 @@ def main():
                     log_classification_report(y_train, yp_train, target_names, 'train')
                     log_classification_report(y_val, yp_val, target_names, 'validation')
                     log_classification_report(y_test, yp_test, target_names, 'test')
-
-                    cmlist = [confusion_matrix(yt, yp) for yt, yp in zip((y_train, y_val, y_test),
-                                                                         yp_train, yp_val, yp_test)]
-                    agg_cm(cmlist, return_figure=False, fpath=paths['artifact']/'cm.png', artifact_path="Figures")
+                    cmlist = [confusion_matrix(yt, yp) for yt, yp in ((y_train, yp_train),
+                        (y_val, yp_val), (y_test, yp_test))]
+                    agg_cm(cmlist, return_figure=False, fpath=paths['artifact']/'cm.png', artifact_path="figures")
 
 
 if __name__ == "__main__":
