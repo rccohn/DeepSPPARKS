@@ -44,13 +44,12 @@ def main():
                           params['mlflow']['dataset_name'])
 
         dataset.process(vgg16_path=pretrained_model_path,
-                        artifact_path=paths['artifact'], force=True, log_featurizer=True)
+                        artifact_path=paths['artifact'], force=False, log_featurizer=True)
         seed = 2980476009
         kf = KFold(n_splits=5, random_state=seed, shuffle=True)
         splits = tuple(kf.split(dataset.X))
 
 
-        mlflow.log_param('k-fold_seed', seed)
         pca_unwhiten = []
         pca_whiten = []
         pca_all = (pca_unwhiten, pca_whiten)
@@ -110,8 +109,8 @@ def main():
                             X_train = pca.transform(dataset.X[split[0]])[:,:n_components]
                             X_val =  pca.transform(dataset.X[split[1]])[:,:n_components]
 
-                            svm = SVC(c=c, kernel='rbf', gamma='scale')
-                            svm.fit(X_train)
+                            svm = SVC(C=c, kernel='rbf', gamma='scale')
+                            svm.fit(X_train, y_train)
 
                             ypt = svm.predict(X_train)
                             ypv = svm.predict(X_val)
@@ -132,19 +131,21 @@ def main():
                             best_n_components = 0
 
 
+        # results_header = ("n_components", "% variance_preserved", "svm-C",
+        #               'pca_whiten', "cv_fold", 'train_acc', 'valid_acc')
 
-                df = pd.DataFrame(data=results, columns=results_header)
-                results_path = Path(paths['artifact'], 'results.csv')
-                df.to_csv(results_path, index_label="index")
-                mlflow.log_artifact(str(results_path))
+        df = pd.DataFrame(data=results, columns=results_header)
+        results_path = Path(paths['artifact'], 'results.csv')
+        df.to_csv(results_path, index_label="index")
+        mlflow.log_artifact(str(results_path))
 
-                best_results = df[np.logical_and(df['c'] == best_c, df['whiten'] == best_whiten)]
-                best_results = best_results[best_results['n_components'] == best_n_components][['train_acc'],
-                                                                                               ['valid_acc']]
-                mlflow.log_params({'pca_n_components': best_n_components, 'pca_whiten': best_whiten,
-                                   'svm_c': best_c})
-                mlflow.log_metrics({'cv_train_acc': best_results['train_acc'].mean(),
-                                    'cv_valid_acc': best_results['validation_acc'].mean()})
+        best_results = df[np.logical_and(df['svm-C'] == best_c, df['pca_whiten'] == best_whiten)]
+        best_results = (best_results[best_results['n_components'] == best_n_components])[['train_acc', 
+            'valid_acc']]
+        mlflow.log_params({'pca_n_components': best_n_components, 'pca_whiten': best_whiten,
+                           'svm_c': best_c})
+        mlflow.log_metrics({'cv_train_acc': best_results['train_acc'].mean(),
+                                    'cv_valid_acc': best_results['valid_acc'].mean()})
 
 
 

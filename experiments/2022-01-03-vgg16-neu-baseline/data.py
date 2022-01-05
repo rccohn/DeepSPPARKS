@@ -15,7 +15,7 @@ class Dataset:
         self.dataset_name = dataset_name
         self.feature_name = "imagenet-tfkeras-vgg16-fc1"
         self.target_name = "NEU-cls"
-        self.labels_inv = ['Cr', 'In', 'Pa', 'PS', 'RS', 'SC']  # maps int to str label
+        self.labels_inv = ['Cr', 'In', 'Pa', 'PS', 'RS', 'Sc']  # maps int to str label
         self.labels_fwd = {y: x for x, y in enumerate(self.labels_inv)}  # maps str label to int
         self.class_labels = ("Normal grain growth", "Abnormal grain growth")
         self.X = None
@@ -34,11 +34,12 @@ class Dataset:
         """
         Loads existing processed data to self.{train, val, test}
         """
-        data_file = Path(self._raw_path, 'data.npz')
+        data_file = Path(self._processed_path, 'data.npz')
+        print("looking for existing data: ", data_file)
         assert data_file.is_file
 
         data = np.load(data_file)
-        assert data['x'].shape == (1800, 4096)
+        assert data['X'].shape == (1800, 4096)
         assert data['y'].shape == (1800, )
 
         self.X = data['X']
@@ -52,7 +53,6 @@ class Dataset:
                 'targets': self.target_name
             }
         )
-        mlflow.log_param('crop', int(self.crop))
 
     def process(self, vgg16_path=None, force=False, log_featurizer=False, artifact_path=None):
         if not force:  # if force == True, skip this step and always process files

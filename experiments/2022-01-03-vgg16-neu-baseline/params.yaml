@@ -2,7 +2,7 @@
 # note that shell variables can be parsed and are indicated with $var or ${var}
 
 mlflow: # relevant mlflow parameters
-  experiment_name: agg-candidate-grains-single  # tracking experiment namei
+  experiment_name: agg-candidate-grains-single-test  # tracking experiment namei
   dataset_name: NEU-CLS # path relative to dataset root
 
   tracking_uri: http://${MLFLOW_TRACKING_IP}:${MLFLOW_TRACKING_PORT} # URI of mlflow tracking server
