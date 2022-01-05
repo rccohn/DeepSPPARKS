@@ -49,14 +49,13 @@ def main():
         kf = KFold(n_splits=5, random_state=seed, shuffle=True)
         splits = tuple(kf.split(dataset.X))
 
-
         pca_unwhiten = []
         pca_whiten = []
         pca_all = (pca_unwhiten, pca_whiten)
 
         for i, s in enumerate(splits):
             X = dataset.X[s[0]]
-            pca_full_unwhiten = PCA(n_components = min(X.shape), svd_solver='full', whiten=False)
+            pca_full_unwhiten = PCA(n_components=min(X.shape), svd_solver='full', whiten=False)
             pca_full_unwhiten.fit(X)
             pca_full_whiten = PCA(n_components=min(X.shape), svd_solver='full', whiten=True)
             pca_full_whiten.fit(X)
@@ -100,14 +99,14 @@ def main():
                 n_components = np.argmax(pca_var * 100 >= var) + 1
 
                 for c in np.logspace(-2, 2, 50):
-                    train_accs = ([],[]) # unwhiten, whiten
+                    train_accs = ([], [])  # unwhiten, whiten
                     val_accs = ([], [])
                     for i, split in enumerate(splits):
                         y_train, y_val = dataset.y[split[0]], dataset.y[split[1]]
                         for whiten in range(2):
                             pca = pca_all[whiten][i]
                             X_train = pca.transform(dataset.X[split[0]])[:,:n_components]
-                            X_val =  pca.transform(dataset.X[split[1]])[:,:n_components]
+                            X_val = pca.transform(dataset.X[split[1]])[:,:n_components]
 
                             svm = SVC(C=c, kernel='rbf', gamma='scale')
                             svm.fit(X_train, y_train)
@@ -130,7 +129,6 @@ def main():
                             best_whiten = whiten
                             best_n_components = 0
 
-
         # results_header = ("n_components", "% variance_preserved", "svm-C",
         #               'pca_whiten', "cv_fold", 'train_acc', 'valid_acc')
 
@@ -139,15 +137,14 @@ def main():
         df.to_csv(results_path, index_label="index")
         mlflow.log_artifact(str(results_path))
 
-        best_results = df[np.logical_and(df['svm-C'] == best_c, df['pca_whiten'] == best_whiten)]
-        best_results = (best_results[best_results['n_components'] == best_n_components])[['train_acc', 
-            'valid_acc']]
+        best_results = df[(df['n_components'] == best_n_components) & (df['pca_whiten'] == best_whiten)
+                          & (np.isclose(df['svm-C'], best_c))]
+        assert sorted(best_results['cv_fold']) == list(range(5))  # contains all folds from single x-val trial
+
         mlflow.log_params({'pca_n_components': best_n_components, 'pca_whiten': best_whiten,
                            'svm_c': best_c})
         mlflow.log_metrics({'cv_train_acc': best_results['train_acc'].mean(),
-                                    'cv_valid_acc': best_results['valid_acc'].mean()})
-
-
+                            'cv_valid_acc': best_results['valid_acc'].mean()})
 
 
 if __name__ == "__main__":
