@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 setup(
-        name='candidate_grains_spparks', # still imports with import src,
+        name='candidate_grains_spparks', # still imports with import spparks2graph,
         # TODO figure out better name 
         packages=find_packages(),
         version='0.0.1',
