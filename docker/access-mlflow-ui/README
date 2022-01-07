@@ -1,0 +1,23 @@
+Contains files for running gcp cloud sql proxy and mlflow tracking server or ui.
+Also contains commands for running docker-compose on gcp container-optimized
+OS, which does not have docker-compose (instead, docker-compose itself is run
+as a docker container.)
+
+Contains the following
+  - docker-compose.yaml:     config file for connection to sql auth proxy
+                             and mlflow tracking server (or ui)
+  - test_psql.sh:            shell script to verify connection to sql 
+                             database
+  - compose_as_container.sh: defines "doco" command, which runs
+                             docker-compose in a docker container
+                             (ie so it can run on gcp COS)
+  - run_cos.sh:              shell script to get tracking server up and
+                             running on gcp COS in one command.
+                             
+
+Needs the following:
+ - key file: gcp service account key
+ - .env:     env file for docker-compose (and shell scripts) containing 
+             secret data (path to service account keys, db login credentials, 
+             etc.) The variables are described in the compose file and/or 
+             shell scripts that call upon them.
