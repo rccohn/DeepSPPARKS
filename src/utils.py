@@ -132,7 +132,7 @@ def _parse_params(params, sub_dict=None):
         sub_dict = params
 
     # regex for matching environment variables
-    env_var_pattern = re.compile(r'\${?[a-zA-Z]+[a-zA-z0-9_]*}?')
+    env_var_pattern = re.compile(r'\${?[a-zA-Z_]+[a-zA-z0-9_]*}?')
 
     for k, v in sub_dict.items():
         if type(v) == dict:
