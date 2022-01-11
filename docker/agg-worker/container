@@ -1,0 +1,49 @@
+# !/bin/bash
+
+# either run ./container build, delete, or run
+CNAME="rccohn/agg-nvdc-v3-base:latest"
+SOURCE_ROOT="../../" # directory contains spparks2graph source code, and setup.py
+
+for arg in "$@"
+do
+	case $arg in
+		-b | --build | build)
+        # build container with default arguments
+        
+        # since docker can't take files from outside of build context, 
+        # we have to copy them first.
+        # to prevent using an older version of spparks2graph, 
+        # the files are deleted after the container is built
+		echo "building container"
+		echo "copying dependencies"
+		cp -r ${SOURCE_ROOT}/spparks2graph .
+		cp ${SOURCE_ROOT}/setup.py .
+		sudo docker build -t ${CNAME} .
+		echo "removing temp files"
+		rm -rf spparks2graph
+		rm setup.py
+		shift
+		;;
+		esac
+	case $arg in
+		-d| --delete | delete)
+		echo "deleting container"
+		sudo docker rmi --force ${CNAME} 
+		shift
+		;;
+		esac
+	case $arg in
+		-r | --run | run)
+		echo "running container with GPU (use -R to run without GPU)"
+		sudo docker run --rm --gpus=all -itd --name worker-base  ${CNAME}
+		shift
+		;;
+		esac
+	case $arg in
+		-R | --Run | Run)
+		echo "running container without GPU (use -r to run with GPU)"
+		sudo docker run --rm --gpus=all -itd --name worker-base  ${CNAME}
+		shift
+		;;
+		esac
+done

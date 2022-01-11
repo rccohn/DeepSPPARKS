@@ -1,0 +1,10 @@
+container: rccohn/agg-nvdc-v3-base:latest
+
+Image for agg worker docker environment. (GPU VMs on GCP for training/evaluating models for AGG project).
+
+spparks2graph is needed IN THE BUILD CONTEXT to work. Use ./container -b to build the container instead of running docker build by yourself.
+
+Copies and Installs deepSPPARK as a module so it can be accessed with import deepsppark.
+
+Note that env.yaml on its own has a dependency conflict between tensorflow and pycocotools.  For some reason, installing the environment, then manually upgrading numpy, resolves this conflict. To reproduce this environment, use both env.yaml AND the additional steps specified in the Dockerfile.
+
