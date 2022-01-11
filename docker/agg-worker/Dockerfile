@@ -40,16 +40,23 @@ COPY env.yml env.yml
 # Install venv
 # env.yml must specify environment name as "env"
 RUN conda env create --file env.yml
-
 # Set conda environment as default pyhton environment (ie no need to source activate)
 ENV PATH="/root/miniconda/envs/env/bin:${PATH}"
 
-# There's some weird dependency issue with pycocotools...
-# HOWEVER... installing numpy==1.19.5 and then 
-# manually pip install --upgrade numpy==1.21.4 appears to work for some reason...
+# There's some weird dependency issue with pycocotools and tensorflow
+# installing numpy==1.19.5 causes some issue with pycocotools.mask.encode (invalid C char)
+# installing numpy==1.21.4 causes issue with tensorflow (Pip failed: The conflict is caused by: The user requested numpy==1.21.4
+#    tensorflow 2.5.0 depends on numpy~=1.19.2)
+# HOWEVER... installing numpy==1.19.5 and then manually pip install --upgrade numpy==1.21.4 appears to work for some reason...
 # thus we apply the workaround here
 RUN pip install --upgrade numpy==1.21.4
 
-# Default directory when attaching to container and/or running commands
-WORKDIR /home/root
+# Copy sppark2graph code and install
+COPY spparks2graph spparks2graph
+COPY setup.py setup.py
+
+# currently -e flag is needed to install correctly
+RUN pip install -e .
+
+
 
