@@ -1,7 +1,84 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
+import pandas as pd
 import mlflow
+
+
+def make_plot_df(xs, ys, hues=None, x_label='x', y_label='y', hue_label='hue'):
+    """
+    Convenience function to generate a dataframe ready for seaborn or plotly plotting.
+
+    Generates a long-formatted dataframe with 3 columns. The first column contains x values,
+    the second column contains y values, and the third column contains values that distinguish
+    individual series. The returned dataframe df can then be plotted in seaborn or plotly by specifying
+    a relevant plotting function with arguments like data=df, x=x_label, y=y_label, hue=hue_label
+
+    Parameters
+    ----------
+    xs, ys: 1d or 2d list-like
+        values to be included in dataframe and plotted on x or y axis.
+        If either is 1d array, it will be broadcasted to match the dimensions of the other.
+        If both are 1d arrays with length n, they will be broadcast into arrays with shape (1,n)
+
+    hues: 1d array, numeric, string, or None
+        if None, hues are not used.
+        If specified, there should be 1 hue value for each series in the data.
+        If numeric or string, the same hue will be given to all series.
+
+    x_label, y_label: str
+        column header for x and y values in dataframe
+
+    hue_label: str or None
+        column header for hue values. Can be None if hues is None, in which
+        case dataframe will not include hue values.
+
+    Returns
+    -------
+    df: pd.Dataframe
+        Dataframe containing x, y, [hue (optional)] values
+    """
+    xs = np.asarray(xs).squeeze()
+    if not xs.shape:
+        xs = xs[np.newaxis]
+    ys = np.asarray(ys).squeeze()
+    if not ys.shape:
+        ys = ys[np.newaxis]
+
+    if hues is None:
+        assert (xs.ndim == 1 or len(xs) == 1) and (
+                    ys.ndim == 1 or len(ys) == 1), 'xs and ys must be 1d if hues are not specified (hues is None)'
+        return pd.DataFrame({x_label: xs.squeeze(), y_label: ys.squeeze()})
+
+    # force xs and ys to be 2d
+    if xs.ndim == 1:
+        xs = xs[np.newaxis, :]
+    if ys.ndim == 1:
+        ys = ys[np.newaxis, :]
+
+    assert len(xs) == len(ys) or min(len(xs),
+                                     len(ys)) == 1, 'xs and ys must be same shape or length 1 for broadcasting'
+    # broadcast
+    if len(xs) == 1:
+        xs = np.broadcast_to(xs, ys.shape)
+    elif len(ys) == 1:
+        ys = np.broadcast_to(ys, xs.shape)
+
+    # handle case where hues may be single value, or array of values.
+    # if array, should be 1d-like (all but 1 dims should be size 1)
+    hues = np.array(hues).squeeze()
+    if not hues.shape:
+        hues = hues[np.newaxis]
+
+    if len(hues) == 1:
+        hues = np.repeat(hues[0], len(xs))
+
+    assert len(xs) == len(ys) and len(xs) == len(hues), 'hues must have 1 element per dataset or 1 element total'
+
+    # put xs, ys, and hues in dataframe that can be conveniently plotted with seaborn or plotly functions
+    dfs = []
+    df = pd.concat([pd.DataFrame({x_label: x, y_label: y, hue_label: hue}) for x, y, hue in zip(xs, ys, hues)])
+    return df
 
 
 def pretty_cm(cm, labelnames, cscale=0.6, ax0=None, fs=6, cmap='cool'):
@@ -172,7 +249,7 @@ def train_curve(iters, train_acc, train_loss, val_acc, val_loss, fpath, artifact
     None
     """
     fpath = Path(fpath)
-    c1, c2 = (0.545, 0.168, 0.886), (0.101, 0.788, 0.219)  # line rgm colors
+    c1, c2 = (0.545, 0.168, 0.886), (0.101, 0.788, 0.219)  # line rgb colors
     fig, ax = plt.subplots(1, 2, dpi=150, figsize=(6, 2.5), facecolor='w')
 
     a = ax[0]  # subplot for losses

@@ -1,0 +1,31 @@
+Guidelines for experiments.
+
+Experiments should be self-contained MLflow projects that accept one argument: path to param file (as a string cannot use path argument with 
+docker since it will not mount correctly.) 
+Other optional arguments can be added as well.
+
+Experiments should contain one outer (ie, nested=False) run.
+One outer run should correspond to a single dataset, featurization method, 
+output target, and model architecture.
+The outer run should log the parameter file, containing all of this information
+as an artifact for reproducibility. The parameter file should also contain parameters
+to sweep over.
+
+Optionally, inner (nested=True) runs can be run under the outer run. Inner runs
+have the same dataset, feature, output target, and model architecture as the parent run.
+Inner runs contain results from sweeping different parameters.
+
+Each run should consist of a 'major' set of parameters. This is subjective,
+but the goal is to log all relevant paameters without excessive logging.
+For example, when conducting a sweep of 100 different values for 3 different
+parameters, instead of logging all 100^3 combinations as individual runs,
+pick the best and log it. A CSV of all 100^3 values can be saved as an 
+artifact on the run, allowing for further investigation if needed.
+
+Each run should log "train acc' and "valid acc." For outer runs, either "test acc" or "n_cval_folds" should be logged. If n_cval_folds is not defined, it is assumed that a regular train/val/test split is used.
+
+Figures, intermediate results, model weights, pkl files, etc should be logged as artifacts to ensure reproducibility.
+
+Each run should produce an mlflow model, logged with its respective flavor. 
+Predictive models should have a predict() method so the pyfunc flavor is
+automatically added. Note that extra artifacts (ie preprocessing transformations) will not automatically be logged. These can either be included manually in a flavor, or just logged as individual artifacts which should be traceable back if a model is used.
