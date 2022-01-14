@@ -1,0 +1,37 @@
+# Docker image for gcp cloud sql proxy
+SQL_AUTH_IMAGE=gcr.io/cloudsql-docker/gce-proxy:latest
+
+# downloaded key for service account with IAM access to database 
+# (cloudsql.instances.connect)
+SERVICE_ACCOUNT_KEY=key.json
+
+# cloud sql connection string
+INSTANCE_CONNECTION=<project>:<zone>:<instance_name>
+
+# Port on host machine to connect sql auth proxy to
+# NOTE: the default for postgres is 5432
+#  However, if you already have a postgres server running on the host,
+#  5432 might already be taken. In this case you will have to choose a 
+#  different port.
+PPORT=5432
+
+# image to run tracking server with, from DeepSPPARK/docker/mlflow-tracking-server
+MLFLOW_SERVER_IMAGE=rccohn/mlflow-tracking-server-1.21.0:latest
+
+# "ui" for user interface only, or "server" for ui + full tracking server
+MLFLOW_OPTION=server
+
+# port on host machine to run server
+MLFLOW_PORT=5000
+
+# mlflow tracking uri
+# for database, this is a SQLAlchemy database uri string
+# of the form dialect+driver://user:password@host_ip:port/db_name
+# NOTE: special characters (such as those in passwords) need to be parsed
+# as URL components. This can be done with python urllib.parse.quote(password, safe='')
+# For example, the password "#2P3ncil_User%" should be entered as '%232P3ncil_User%25'
+MLFLOW_BACKEND_URI=postgresql+psycopg2://user:password@127.0.0.1:5432/my_db
+
+# default artifact root: uri to store artifacts
+MLFLOW_ARTIFACT_ROOT=gs://my-bucket/path/to/artifact/storage
+

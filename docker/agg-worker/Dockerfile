@@ -38,7 +38,13 @@ ENV PATH /root/miniconda/bin:$PATH
 COPY env.yml env.yml
 
 # Install venv
-# env.yml must specify environment name as "env"
+# env.yml specifies environment name as "env"
+# note: the default env.yml includes several large libraries 
+#       cuda, pytorch, tensorflow, etc
+#      For adding smaller packages, adding another 
+#      RUN pip install command will be MUCH faster
+#      than altering env.yml as Docker can use the 
+#      existing layers for these larger libraries.
 RUN conda env create --file env.yml
 # Set conda environment as default pyhton environment (ie no need to source activate)
 ENV PATH="/root/miniconda/envs/env/bin:${PATH}"
