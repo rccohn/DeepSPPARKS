@@ -14,6 +14,7 @@ import itertools
 from torch.optim import Adam
 from torch_geometric.data import Data
 
+
 def main():
     print('parsing params')
     params = parse_params('/root/inputs/params.yaml')  # parse experiment parameters

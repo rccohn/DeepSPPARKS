@@ -1,0 +1,16 @@
+# sample parameters
+
+mlflow: # relevant mlflow parameters
+  experiment_name: agg-single  # tracking experiment namei
+  dataset_name: candidate-grains-toy-lmd-v2.0.0  # path relative to dataset root
+
+# cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
+cgr_thresh: [6, 8]
+
+# percent of variance to be preserved by PCA
+pca_var: [50, 65]
+
+# number of values of c (log-spaced) between 0.01 and 100
+svm_num_c: 4
+
+

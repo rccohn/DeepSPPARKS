@@ -1,0 +1,22 @@
+# sample parameters
+
+mlflow: # relevant mlflow parameters
+  experiment_name: agg-single  # tracking experiment namei
+  dataset_name: candidate-grains-toy-lmd-v2.0.0  # path relative to dataset root
+
+# cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
+cgr_thresh: [6, 8]
+
+# iterations of message passing for 
+k: [1,2,3]
+
+# settings for Adam
+optimizer:
+  lr: [0.001, 0.005] # learning rate
+  decay: [0.001, .0005]
+
+# for nn training
+training:
+  max_iter: 50
+  checkpoint_iter: 10 # model weights/metrics saved at each checkpoint
+
