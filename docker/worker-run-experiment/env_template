@@ -1,9 +1,12 @@
 # environment variables for mlflow experiments
 
-# ssh folder configured for container use (ie permissions/owner must be configured for user "root", see readme for more info
-# needed if mlflow tracking uses a sftp artifact backend
-# even if a different backend is used, this should point to an existing folder so that docker does not create an unused
+# ssh folder configured for container use (ie permissions/owner must be configured 
+# for user "root", see readme for more info.) It is needed if mlflow tracking uses a
+# sftp artifact backend.
+# If you are not using an sftp artifact store, point CONTAINER_SSH to an existing
+# directory (can be an empty directory) so that docker does not create an unused
 # volume. Mounted as read only so container cannot accidentally alter ssh keys.
+# for more info, see DeepSPPARK/docker/tracking_server_with_sftp/
 CONTAINER_SSH=/home/USER/.ssh
 
 # root directory for datasets (contains each dataset as a subdirectory)
