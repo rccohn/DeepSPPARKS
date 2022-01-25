@@ -1,68 +1,95 @@
 #!/bin/bash
+EXP="/home/ryan/Documents/School/Research/Projects/AGG-new/DeepSPPARK/experiments/2022-01-03-vgg16-neu-baseline"
 
-## run experiment
-## script requires 1 argument, path to experiment directory
-## experiment directory must contain run_experiment.sh and .env
+ENV_FILE=.env
+POSITIONAL_ARGS=()
+GPU_ARG="-A gpus=all" # run with gpus unless --cpu is specified
+PARAM_FILE=params.yaml
 
-# run_experiment.sh is the shell script which runs the code 
-# it can be as simple as "python my_file.py"
+while (("$#" )); do
+    case "$1" in
+        -e|--env-file)
+            ENV_FILE=$2
+            shift # past argument
+            shift # past value
+        ;;
+		--param-file)
+			PARAM_FILE=$2
+			shift # past argument
+			shift # past value
+		;;
+        --cpu)
+            GPU_ARG=""
+            shift
+        ;;
+        *)
+        POSITIONAL_ARGS+=("$1") # save positional arg
+        shift # past argument
+        ;;
+    esac
+done
 
-# .env defines environment variables like the 
-# path to the dataset to use, address of the mlflow tracking server,
-# and several others. See "env_template" for a sample list
+PROJECT_DIR=${POSITIONAL_ARGS[0]}
 
-# validate input deck
-INPUT=$1
-if [ -z $INPUT ]; then
-	echo "supply path to experiment"
-	exit
+if [ -z ${PROJECT_DIR}  ]; then
+    echo "missing argumernt 1: path to project to run"
+    exit 0
+fi
+if [ ! -d ${PROJECT_DIR} ]; then
+    echo "Project directory does not exist: ${PROJECT_DIR}"
 fi
 
-f="start.sh"
-if [ ! -f ${INPUT}/${f} ]; then
-  echo "experiment must have ${f}!"
-  exit
+if [ ! -f ${ENV_FILE} ]; then
+    echo "Missing or invalid env file: ${ENV_FILE}"
+	exit 0
 fi
 
+if [ ! -f ${PARAM_FILE} ]; then
+	echo "Missing or invalid param file: ${PARAM_FILE}"
+	exit 0
+fi
 
-# docker mounts require absolute path, convert argument 1 to absolute
-EXP=$( realpath $INPUT) # path to experiment (directory includes run_experiment.sh and other files)
+export PARAM_FILE=$(realpath ${PARAM_FILE})
+echo param file ${PARAM_FILE}
+# export variables from .env file
+parse_line(){
+    LINE=${1}
+    # if line is not empty OR does not start with spaces then comment
+    if [ ! -z "$(echo ${LINE})" ]; then
+        # if line does not start with comment, export line (VAR=VALUE)
+        if [ ! "${LINE:0:1}" = "#" ]; then
+            export "${LINE}" # export variable
+        fi
+    fi
+}
 
-# load environment variables from experiment
-ENV_FILE=$( dirname -- ${BASH_SOURCE[0]} )/.env # defines dataset name, tracking uri, paths on host/container, etc
-source ${ENV_FILE}
+while read LINE; do parse_line "${LINE}"; done < ${ENV_FILE}
 
-# if processed_data directory does not exist, create it
-# (if it does exist, it is left alone, not overwritten)
-mkdir -p ${HOST_PROCESSED}
+# parse mlflow experiment
+export MLFLOW_EXPERIMENT_NAME=$(python read_params.py ${PARAM_FILE})
+echo "experiment: ${MLFLOW_EXPERIMENT_NAME}"
 
-## NOTE: you can't have ANY characters (spaces, comments) after line break (\)
-## otherwise the command will not run, you will get a vague error message,
-## and it  will be VERY difficult to debug. 
-## Workaround is to put comments in backticks BEFORE the linebreak.
+# mount datasets as read only
 
-# note that experiment and dataset mounts are readonly so script cannot accidentally 
-# alter experiment parameters or dataset
-# intermediate data needs to be writeable
-echo "starting container ${DOCKER_IMAGE}"
-CID=$( docker run -itd  --rm --name experiment-run \
-	 --gpus all `#enable gpu` \
-	 --env-file ${ENV_FILE} `#pass env variables to container` \
-	 --mount type=bind,source=${EXP},target=${CONTAINER_EXP},readonly`# mount experiment directory` \
-	 --mount type=bind,source=${HOST_DATASET},target=${CONTAINER_DATASET},readonly `# mount dataset` \
-	 --mount type=bind,source=${HOST_PROCESSED},target=${CONTAINER_PROCESSED} `#mount processed data` \
-	 ${DOCKER_IMAGE} ) #  (can't run experiment file yet 
-                           # because mounted directories not yet available)
-echo container started: $CID # verify container started correctly
-docker exec $CID bash -c 'echo "verifying gpu access"  && nvidia-smi' # should show gpu name
-sleep 2
-docker exec $CID bash -c 'echo $CONTAINER_DATASET'
-docker exec $CID bash -c 'echo running /root/exp/start.sh'
-docker exec $CID bash -c 'cd /root/exp/ && bash "start.sh"'
-echo "stopping container"
-CID=$(docker stop $CID)
-# TODO poweroff if needed # remember mlflow server also needs to be shut down
-# think about how to best do this (considering multiple workers may run in 
-# parallel. use lockfiles on cloud storage?)
-# sudo shutdown
-exit
+# note: by default, mlflow only allows unique arguments to be passed to docker 
+# (ie you can't specify two --mount arguments, even though docker allows this)
+# a workaround is to pass multiple docker arguments within a single -A argument for mlflow
+# for example, 
+
+echo listing vars
+echo $MLFLOW_TRACKING_URI
+echo ${PARAM_FILE}
+echo ${VGG16_IMAGENET_PATH}
+echo $CONTAINER_SSH
+echo ${RAW_DATA_ROOT}
+echo ${PROCESSED_ROOT}
+echo done
+
+mlflow run  \
+    -e main `# entrypoint (default main)`\
+	-A network="host -it" `# docker: host networking`\
+	${GPU_ARG}\
+	${PROJECT_DIR}  # project uri
+# -A gpus all `#enable gpu' \
+
+

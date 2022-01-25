@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import re
 import yaml
+import mlflow
 
 
 def batcher(data, batch_size=3, min_size=2):
@@ -103,10 +104,18 @@ def parse_params(in_path):
     with open(in_path, 'r') as f:
         data = yaml.safe_load(f)
     params = _parse_params(data, None)
-    if 'path' in params.keys():
-        params['path'] = _str2path(params['path'])
+
     if 'paths' in params.keys():
         params['paths'] = _str2path(params['paths'])
+        _make_paths(params['paths'])
+
+    if 'mlflow' in params.keys():
+        mlf_params = params['mlflow']
+        if 'tracking_uri' in mlf_params.keys():
+            mlflow.set_tracking_uri(mlf_params['tracking_uri'])
+        if 'experiment_name' in mlf_params.keys():
+            mlflow.set_experiment(mlf_params['experiment_name'])
+
     return params
 
 
@@ -175,6 +184,28 @@ def _str2path(v):
         return Path(v)
     elif t == dict:
         return {k: _str2path(x) for k, x in v.items()}
+
+def _make_paths(v):
+    """
+    Helper function to make dirs in params paths.
+
+    Parameters
+    ----------
+    v: None, Path, or dict
+
+    Returns
+    -------
+
+    """
+    t = type(v)
+    if t is None:
+        return
+    elif t == Path:
+        os.makedirs(v, exist_ok=True)
+    elif t == dict:
+        # recursively make all paths in entries of v
+        {_make_paths(vv) for vv in v.values()}
+        return
 
 if __name__ == "__main__":
     pass

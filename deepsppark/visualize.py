@@ -3,6 +3,36 @@ import numpy as np
 from pathlib import Path
 import pandas as pd
 import mlflow
+import plotly
+import plotly.express as px
+
+
+def scree_plot(pca_var):
+    """
+    Makes scree plot and returns plotly figure
+
+    Parameters
+    ----------
+    pca_var: ndarray
+        fraction of variance explained by each component
+        (ie result of sklearn pca.explained_variance_ratio_)
+
+    Returns
+    -------
+    fig: plotly figure
+        figure with scree plot
+    """
+    components = list(range(1, len(pca_var)+1))
+    var_cumulative = pca_var.cumsum()
+    df = make_plot_df(components, (pca_var, var_cumulative),
+                      hues=('individual', 'cumulative'),
+                      x_label='n_components',
+                      y_label='fraction of variance explained')
+    fig = px.line(df, 'n_components', 'fraction of variance explained',
+                  color='hue',  color_discrete_sequence=plotly.colors.qualitative.Dark2[2:4])
+    fig.update_layout(hovermode='x unified', font={'size': 14})
+
+    return fig
 
 
 def make_plot_df(xs, ys, hues=None, x_label='x', y_label='y', hue_label='hue'):

@@ -5,7 +5,7 @@ import networkx as nx
 
 from skimage.morphology import binary_dilation
 from pathlib import Path, PurePath
-from spparks2graph.image import roll_img
+from deepsppark.image import roll_img
 from pycocotools import mask as RLE
 from copy import deepcopy
 
@@ -461,7 +461,7 @@ class Graph(nx.DiGraph):
         # next, add edges between all existing nodes in subgraph
         for src, neighs in sg_nodes.items():
             for tgt in neighs:
-                # only include edge if spparks2graph and target aro both nodes in subgraph
+                # only include edge if deepsppark and target aro both nodes in subgraph
                 if tgt in sg_nodes.keys():
                     feat = self.edges[(src, tgt)]
                     sg.add_edge(src, tgt, **feat)
@@ -993,12 +993,12 @@ def _add_node_to_img(g, img, src, target):
     """
     img: image to put grains on
     g: graph
-    spparks2graph, target: nodes in graph
-        spparks2graph should already be on graph, target should be a neighbor of spparks2graph
-        (ie the edge (spparks2graph, target) should exist)
+    deepsppark, target: nodes in graph
+        deepsppark should already be on graph, target should be a neighbor of deepsppark
+        (ie the edge (deepsppark, target) should exist)
     """
     # note- need to handle wrapped grains later
-    #xcenter = np.mean(np.where(img == spparks2graph), axis=1)  # centroid of source grain
+    #xcenter = np.mean(np.where(img == deepsppark), axis=1)  # centroid of source grain
     edge = g.edges[(src, target)]
 
     bitmask = RLE.decode(g.nodes[target]['rle'])

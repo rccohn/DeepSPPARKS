@@ -1,8 +1,16 @@
 Guidelines for experiments.
 
-Experiments should be self-contained MLflow projects that accept one argument: path to param file (as a string cannot use path argument with 
-docker since it will not mount correctly.) 
-Other optional arguments can be added as well.
+Experiments should be self-contained MLflow projects. By default, the following will be mounted to experiments:
+  - HOST_DATASET: read only path to root folder containing datasets on host machine
+  - HOST_PROCESSED: read/write path to root folder for processed datasets  on host machine
+  - HOST_PARAMS: read only path to params.yaml file taken by experiments.
+
+Before starting experiments, the MLFLOW_TRACKING_URI environment variable should be specified.
+params.yaml should have params['mlflow']['experiment_name'] defined, and params['mlflow']['dataset'],
+the relative path to the dataset used from HOST_DATASET. Optionally, other parameters can be included.
+For runs with few tunable parameters, the parameters can be passed through the entrypoint in
+the MLProject file, and will automatically be logged by mlflow. For parameters with lots of values,
+ the params.yaml file can be used instead, but these will have to be logged in the experiment code.
 
 Experiments should contain one outer (ie, nested=False) run.
 One outer run should correspond to a single dataset, featurization method, 

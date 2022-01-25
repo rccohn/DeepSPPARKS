@@ -4,21 +4,26 @@ import os
 from pathlib import Path
 from pycocotools.mask import decode
 from skimage.measure import regionprops_table
-from src.graphs import Graph, combine_graphs, roll_img
+from deepsppark.graphs import Graph, combine_graphs, roll_img
 import torch
 from torch_geometric.data import Data
 
 
 class Dataset:
-    def __init__(self, raw_root, processed_root, name=None, log=True):
-        self.raw_root = Path(raw_root)
-        self.processed_root = Path(processed_root)
+    def __init__(self, name, raw_root='/root/data/datasets',
+                 processed_root='/root/data/processed', log=True):
+
+
         if name is None:
             self.dataset_name = self.raw_root.name  # folder should be name of dataset
         else:
             self.dataset_name = name
         self.feature_name = "grain_properties_single_v1"  # description of features
-        self.target_name = "candidate_grain_thresh_cgr>=10"  # description of targets
+        self.target_name = "candidate_growth_ratio"  # description of targets
+
+        self.raw_root = Path(raw_root, name)
+        self.processed_root = Path(processed_root, name, self.feature_name, self.target_name)
+
         self.class_labels = ("Normal grain growth", "Abnormal grain growth")
         self.means = None  # means for normalizing
         self.stds = None  # stds for normalizing
@@ -84,6 +89,7 @@ class Dataset:
         subsets = {}
         for subset in keys:
             raw = Path(self.raw_root, subset)
+            assert raw.is_dir() and len(list(raw.glob('*.json')))
             print("processing {} ({} files)".format(raw.absolute(), len(list(raw.glob('*.json')))))
             # load all json graphs, combine into one large multi graph
             subgraphs = []
@@ -98,7 +104,7 @@ class Dataset:
             # regionprops for featurization
             props = ('area', 'perimeter', 'equivalent_diameter', 'major_axis_length', 'minor_axis_length')
             x = np.zeros((len(g.nodes), len(props) + 2), dtype=float)  # props + grain "type" + degree
-            y = np.zeros(len(g.nodes), bool)  # True/False classification of abnormal grain growth
+            y = np.zeros(len(g.nodes), float)  # True/False classification of abnormal grain growth
 
             nli = g.nli  # ordered node indices
 
@@ -118,7 +124,7 @@ class Dataset:
                     feat[2 + i] = float(rprops[p][0])
 
                 gs = node['grain_size'][0]
-                y[n] = (gs[-1]/gs[0] >= 10.)  # criteria for AGG: cgr >= 10
+                y[n] = (gs[-1]/gs[0])  # candidate growth ratio
 
                 x[n] = feat
 

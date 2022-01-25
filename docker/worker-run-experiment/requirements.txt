@@ -1,0 +1,2 @@
+mlflow==1.22.0 # should be same version as mlflow used inside project
+pyyaml==6.0 # for parsing configs

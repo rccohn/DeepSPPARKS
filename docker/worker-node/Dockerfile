@@ -9,7 +9,7 @@ ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 # Allow apt-get install without interaction from console
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set the working directory to /root
+# Set the working directory to /home
 WORKDIR /home/
 
 # System updates and configurations
@@ -58,11 +58,17 @@ ENV PATH="/root/miniconda/envs/env/bin:${PATH}"
 RUN pip install --upgrade numpy==1.21.4
 
 # Copy sppark2graph code and install
-COPY spparks2graph spparks2graph
-COPY setup.py setup.py
+COPY deepsppark deepsppark
+COPY setup.py .
 
 # currently -e flag is needed to install correctly
 RUN pip install -e .
 
+# make directories that experiments will use
+RUN mkdir /root/.ssh # for ssh files (mount as read only, only if sftp artifact store used)
+RUN mkdir -p /root/data/datasets  # raw data (mount as read only)
+RUN mkdir /root/data/processed  # processed dat (mount as read-write)
+RUN mkdir /root/inputs  # for params.yaml and other input files
+RUN mkdir /root/artifacts # temp storage for mlflow artifacts
 
 

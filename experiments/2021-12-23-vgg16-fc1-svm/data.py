@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import skimage
 import skimage.io
-from src.graphs import Graph
+from deepsppark.graphs import Graph
 from tensorflow.keras.applications.vgg16 import VGG16, preprocess_input
 from tensorflow.keras.models import Model, load_model
 
@@ -42,12 +42,13 @@ def crop_img(img, newr, newc):
 
 
 class Dataset:
-    def __init__(self, raw_root, processed_root, crop, dataset_name, log=True):
+    def __init__(self, dataset_name, crop, raw_root='/root/data/datasets',
+                 processed_root='/root/data/processed', log=True):
         self.raw_root = Path(raw_root)  # path to directory containing dataset folder
         self.processed_root = Path(processed_root)  # root directory to save processed data in
         self.dataset_name = dataset_name
         self.feature_name = "imagenet-tfkeras-vgg16-fc1"
-        self.target_name = "candidate_grain_thresh_cgr_ge_10"
+        self.target_name = "candidate_growth_ratio"
         self.class_labels = ("Normal grain growth", "Abnormal grain growth")
         self.train = None
         self.val = None
@@ -61,8 +62,7 @@ class Dataset:
         else:
             crop_str = "no_crop"
         self._processed_path = Path(self.processed_root, self.dataset_name, 
-                self.feature_name, crop_str, self.target_name)
-
+                                    self.feature_name, crop_str, self.target_name)
         if log:
             self._log()
 
@@ -131,14 +131,13 @@ class Dataset:
             n = len(files)
             checkpoint = (0, n//2, n-1)  # index to save sample images for verification
             features = np.zeros((len(files), 4096), float)  # x data
-            targets = np.zeros(len(files), bool)  # classification targets
+            targets = np.zeros(len(files), float)  # classification targets
             for i, f in enumerate(files):  # train/graph_xxx.json
                 g = Graph.from_json(f)
                 cidx = g.cidx[0]  # only 1 candidate per simulation
                 candidate_node = g.nodelist[cidx]
                 size = candidate_node['grain_size'][0]
-                yi = size[-1]/size[0] >= 10.
-                targets[i] = yi
+                targets[i] = size[-1]/size[0]
 
                 # generate image where each grain is colored by its 'type',
                 # the candidate grain is centered in the image, and

@@ -9,7 +9,7 @@ from tensorflow.keras.models import Model, load_model
 
 
 class Dataset:
-    def __init__(self, raw_root, processed_root, dataset_name, log=True):
+    def __init__(self, dataset_name, raw_root='/root/data/datasets/', processed_root='/root/data/processed',  log=True):
         self.raw_root = Path(raw_root)  # path to directory containing dataset folder
         self.processed_root = Path(processed_root)  # root directory to save processed data in
         self.dataset_name = dataset_name
@@ -36,11 +36,9 @@ class Dataset:
         """
         data_file = Path(self._processed_path, 'data.npz')
         print("looking for existing data: ", data_file)
-        assert data_file.is_file
+        assert data_file.is_file(), 'processed data not found'
 
         data = np.load(data_file)
-        assert data['X'].shape == (1800, 4096)
-        assert data['y'].shape == (1800, )
 
         self.X = data['X']
         self.y = data['y']
@@ -54,7 +52,9 @@ class Dataset:
             }
         )
 
-    def process(self, vgg16_path=None, force=False, log_featurizer=False, artifact_path=None):
+    def process(self, force=False, vgg16_path=Path('/root', 'inputs', 'pretrained_model.h5'),
+                log_featurizer=False, artifact_path=Path('root', 'artifacts')):
+
         if not force:  # if force == True, skip this step and always process files
             try:  # load existing data
                 self.load()
@@ -68,7 +68,8 @@ class Dataset:
         if vgg16_path is None:
             vgg16 = VGG16(include_top=True, weights="imagenet")
         else:
-            vgg16 = VGG16(include_top=True, weights=vgg16_path)
+            print('weights: {} {}'.format(vgg16_path, vgg16_path.exists()))
+            vgg16 = VGG16(include_top=True, weights=str(vgg16_path))
         # preprocess inputs: normalize by rgb mean [0.485 0.456 0.406]
         # and standard deviation [0.229, 0.224, 0.225], or equivalent based on format of images
         fc1_extractor = Model(inputs=vgg16.inputs, outputs=vgg16.get_layer('fc1').output)
@@ -84,9 +85,13 @@ class Dataset:
 
         #  use sort to keep order consistent --> easier to look at individual samples
         files = sorted(self._raw_path.glob('*.bmp'))
-
+        print('\nraw data', self._raw_path, self._raw_path.exists(), '\n\n')
         n = len(files)
-        assert n == 1800
+        print(n)
+        assert n
+
+
+
 
         features = np.zeros((len(files), 4096), float)  # x data
         targets = np.zeros(len(files), bool)  # classification targets
