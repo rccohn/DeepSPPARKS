@@ -1,0 +1,19 @@
+# ssh folder configured for container use (ie permissions/owner must be configured for user "root", see readme for more info
+# needed if mlflow tracking uses a sftp artifact backend
+# even if a different backend is used, this should point to an existing folder so that docker does not create an unused
+# volume. Mounted as read only so container cannot accidentally alter ssh keys.
+CONTAINER_SSH=/home/USER/.ssh
+
+# root directory for datasets (contains each dataset as a subdirectory)
+# mounted as read-only so experiment can never accidentally alter raw data
+RAW_DATA_ROOT=/home/USER/data/datasets
+
+# processed data root, contains featurized data that can actually be used by a model during experiments
+# mounted as read/write, allowing container to save featurized data to host, for re-use with later
+# experiments with the same dataset/features/targets.
+PROCESSED_DATA_ROOT=/home/USER/data/processed
+
+# for experiments that use transfer learning with VGG16
+VGG16_IMAGENET_PATH=/home/USER/models/vgg16
+
+
