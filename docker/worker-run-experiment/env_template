@@ -1,3 +1,4 @@
+# TODO ssh for container, update env variables needed for each experiment
 ## SAMPLE VALUES- REPLACE WITH YOUR OWN
 #Should be saved as ".env" when you are ready
 # mlflow tracking uri: http server (ip specified by $MLIP ), port 5000

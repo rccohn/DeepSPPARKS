@@ -1,0 +1,18 @@
+# sample parameters
+
+mlflow: # relevant mlflow parameters
+  experiment_name: neu-baseline  # tracking experiment namei
+  dataset_name: NEU-CLS-toy  # path relative to dataset root
+
+# parameters for k fold splits
+kfold:
+  seed: 2980476009
+  n_splits: 2 # 5
+
+# percent of variance to be preserved by PCA
+pca_var: [50, 65] #[25, 50, 60, 65, 70, 75, 80, 90, 100]
+
+# number of values of c (log-spaced) between 0.01 and 100
+svm_num_c: 4 # 50
+
+
