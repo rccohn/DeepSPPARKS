@@ -4,7 +4,7 @@ EXP="/home/ryan/Documents/School/Research/Projects/AGG-new/DeepSPPARK/experiment
 ENV_FILE=.env
 POSITIONAL_ARGS=()
 GPU_ARG="-A gpus=all" # run with gpus unless --cpu is specified
-PARAM_FILE=params.yaml
+PARAM_FILE=.run_params.yaml
 
 while (("$#" )); do
     case "$1" in
