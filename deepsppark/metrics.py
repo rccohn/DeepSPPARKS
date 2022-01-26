@@ -1,4 +1,5 @@
 import mlflow
+import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
 
 
@@ -52,8 +53,11 @@ def log_classification_report(gt, yp, target_names, label):
     None
 
     """
-
-    cr = classification_report(gt, yp, target_names=target_names,
+    # classification_report() errors out if the number of unique elements in gt/yp is different than target_names
+    # this can cause problems when running small test cases where there may only be samples with 1 label
+    # to get around this, tell classification report to only include classes present in gt or yp
+    labels = np.unique(np.concatenate((gt, yp), axis=0))
+    cr = classification_report(gt, yp, labels=labels, target_names=target_names,
                                output_dict=True, zero_division=0)
 
     #  unpack metrics for each class (ie train-precision-NGG, val-precision-AGG)
