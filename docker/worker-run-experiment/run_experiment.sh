@@ -1,11 +1,12 @@
 #!/bin/bash
 
-ENV_FILE=.env
-POSITIONAL_ARGS=()
+ENV_FILE=.env # defines env variables such as MLFLOW_TRACKING_URI, location of dataset on host, etc
 GPU_ARG="-A gpus=all" # run with gpus unless --cpu is specified
-PARAM_FILE=.run_params.yaml
-ENTRYPOINT="main"
+PARAM_FILE=.run_params.yaml # path to input parameter deck for mlflow project
+ENTRYPOINT="main" # mlflow project entrypoint
+VERSION="main" # mlflow project version (git branch name or commit hash)
 
+POSITIONAL_ARGS=()
 while (("$#" )); do
     case "$1" in
         -e|--env-file)
@@ -23,6 +24,11 @@ while (("$#" )); do
 		shift
 		shift
 		;;
+	--version)
+		VERSION=$2
+		shift
+		shift
+		;;
         --cpu)
 		GPU_ARG=""
 		shift
@@ -34,11 +40,6 @@ while (("$#" )); do
     esac
 done
 
-
-if [ -z ${PROJECT_DIR}  ]; then
-    echo "missing argumernt 1: path to project to run"
-    exit 0
-fi
 
 if [ ! -f ${ENV_FILE} ]; then
     echo "Missing or invalid env file: ${ENV_FILE}"
@@ -69,16 +70,16 @@ parse_line(){
 while read LINE; do parse_line "${LINE}"; done < ${ENV_FILE}
 
 # python and mlflow executibles
-PYTHON_EXE=${PYTHON_ENV}/python3
-MLFLOW_EXE=${PYTHON_ENV}/mlflow
-
+PYTHON_EXE=${PYTHON_ENV}python3
+MLFLOW_EXE=${PYTHON_ENV}mlflow
+echo python ${PYTHON_EXE}
 
 # parse mlflow experiment
 export MLFLOW_EXPERIMENT_NAME=$(${PYTHON_EXE} read_params.py ${PARAM_FILE} 0)
 echo "experiment: ${MLFLOW_EXPERIMENT_NAME}"
 
 PROJECT_URI=$(${PYTHON_EXE} read_params.py ${PARAM_FILE} 1)
-
+echo Project URI: ${PROJECT_URI}
 # mount datasets as read only
 
 # note: by default, mlflow only allows unique arguments to be passed to docker 
@@ -97,6 +98,7 @@ echo done
 
 ${MLFLOW_EXE} run  \
     -e ${ENTRYPOINT} `# entrypoint (default main)`\
+    -v ${VERSION} `# mlflow project version`\
 	-A network="host -it" `# docker: host networking`\
 	${GPU_ARG}\
 	${PROJECT_URI}  # project uri

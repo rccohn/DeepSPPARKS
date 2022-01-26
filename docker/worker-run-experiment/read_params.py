@@ -6,8 +6,10 @@ params_path = Path(argv[1])
 with open(params_path, 'r') as f:
     params = yaml.safe_load(f)
 
-if argv[2] == 0:
+option = int(argv[2])
+
+if option == 0:
     stdout.write('{}\n'.format(params['mlflow']['experiment_name']))
 
-elif argv[2] == 1:
-    stdout.write('{}\n'.format(params['mlflow']['project'])
+elif option == 1:
+    stdout.write('{}\n'.format(params['mlflow']['project']))
