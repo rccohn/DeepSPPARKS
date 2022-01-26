@@ -6,12 +6,23 @@ FINISHED=${ROOT}/finished
 
 SHUTDOWN=0
 
+VERSION="" # will default to main
+
+while (("$#")); do
+	case $1 in 
+		--debug)
+			VERSION="--version dev"
+			shift
+			;;
+	esac
+done
+
 for PARAM_FILE in $(ls -1 ${QUEUE}); do
 	SRC=${QUEUE}/${PARAM_FILE}
 	TGT=${FINISHED}/${PARAM_FILE}
-	echo "processing ${SRC}"
+	printf "\n#####processing ${SRC}#####\n"
 	mv ${SRC} ${TGT}
-	bash run_experiment.sh --param-file ${TGT}
+	bash run_experiment.sh ${VERSION} --param-file ${TGT}
 	echo "done"
 done
 

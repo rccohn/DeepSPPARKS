@@ -149,7 +149,7 @@ def main():
                         mlflow.log_artifact(str(results_path), artifact_path='results')
                         results_path = artifact / 'results.html'
                         df.to_html(results_path)
-                        mlflow.log_artifact(results_path, artifact_path='results')
+                        mlflow.log_artifact(str(results_path), artifact_path='results')
 
                         # train/val accs vs c for different settings in child run?
 
@@ -197,7 +197,7 @@ def main():
         mlflow.log_artifact(str(results_path), artifact_path='results')
         results_path = artifact / 'results.html'
         df.to_html(results_path)
-        mlflow.log_artifact(results_path, artifact_path='results')
+        mlflow.log_artifact(str(results_path), artifact_path='results')
 
         # save model as mlflow model
         mlflow.sklearn.log_model(best_model_all, artifact_path="models/svm")
