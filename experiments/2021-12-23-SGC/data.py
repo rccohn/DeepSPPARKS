@@ -89,11 +89,12 @@ class Dataset:
         subsets = {}
         for subset in keys:
             raw = Path(self.raw_root, subset)
-            assert raw.is_dir() and len(list(raw.glob('*.json')))
+            files = sorted(raw.glob('*.json'))
             print("processing {} ({} files)".format(raw.absolute(), len(list(raw.glob('*.json')))))
+            assert raw.is_dir() and len(files)
             # load all json graphs, combine into one large multi graph
             subgraphs = []
-            for f in sorted(raw.glob('*.json')):
+            for f in files:
                 sg = Graph.from_json(f)
                 # won't use more than 4 iterations of message passing, only need subgraph with r=4
                 # only 1 candidate grain per graph, with node index g.cidx[0]

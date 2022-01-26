@@ -1,0 +1,19 @@
+# sample parameters
+
+mlflow: # relevant mlflow parameters
+  project: git@github.com:rccohn/DeepSppark.git#experiments/2022-01-03-vgg16-neu-baseline # path to this project's directory
+  experiment_name: neu-baseline  # tracking experiment namei
+  dataset_name: NEU-CLS-toy  # path relative to dataset root
+
+# parameters for k fold splits
+kfold:
+  seed: 2980476009
+  n_splits: 2
+
+# percent of variance to be preserved by PCA
+pca_var: [50, 75]
+
+# number of values of c (log-spaced) between 0.01 and 100
+svm_num_c: 5
+
+
