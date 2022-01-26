@@ -5,27 +5,34 @@ ENV_FILE=.env
 POSITIONAL_ARGS=()
 GPU_ARG="-A gpus=all" # run with gpus unless --cpu is specified
 PARAM_FILE=.run_params.yaml
+ENTRYPOINT="main"
 
 while (("$#" )); do
     case "$1" in
         -e|--env-file)
-            ENV_FILE=$2
-            shift # past argument
-            shift # past value
-        ;;
-		--param-file)
-			PARAM_FILE=$2
-			shift # past argument
-			shift # past value
+        	 ENV_FILE=$2
+		shift # past argument
+		shift # past value
 		;;
+	--param-file)
+		PARAM_FILE=$2
+		shift # past argument
+		shift # past value
+		;;
+	--entrypoint)
+		ENTRYPOINT=$2
+		shift
+		shift
+		;;
+
         --cpu)
-            GPU_ARG=""
-            shift
-        ;;
+		GPU_ARG=""
+		shift
+		;;
         *)
-        POSITIONAL_ARGS+=("$1") # save positional arg
-        shift # past argument
-        ;;
+		POSITIONAL_ARGS+=("$1") # save positional arg
+		shift # past argument
+		;;
     esac
 done
 
@@ -34,9 +41,6 @@ PROJECT_DIR=${POSITIONAL_ARGS[0]}
 if [ -z ${PROJECT_DIR}  ]; then
     echo "missing argumernt 1: path to project to run"
     exit 0
-fi
-if [ ! -d ${PROJECT_DIR} ]; then
-    echo "Project directory does not exist: ${PROJECT_DIR}"
 fi
 
 if [ ! -f ${ENV_FILE} ]; then
@@ -85,8 +89,8 @@ echo ${RAW_DATA_ROOT}
 echo ${PROCESSED_ROOT}
 echo done
 
-mlflow run  \
-    -e main `# entrypoint (default main)`\
+${MLFLOW_EXE} run  \
+    -e ${ENTRYPOINT} `# entrypoint (default main)`\
 	-A network="host -it" `# docker: host networking`\
 	${GPU_ARG}\
 	${PROJECT_DIR}  # project uri

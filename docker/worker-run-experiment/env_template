@@ -1,5 +1,16 @@
 # environment variables for mlflow experiments
 
+# Sample environment variables. Default values give hints and descriptions for what
+# the values should look like, but need to be changed to real values (ie path to dataset,
+# real host/port of tracking uri, etc) before running
+
+# URI of mlflow tracking server
+MLFLOW_TRACKING_URI=http://127.0.0.1:5000
+
+# executible used for "mlflow run." Note this is just used to run the project
+# and is not the same environment that the project itself runs in. 
+MLFLOW_EXE=/home/USER/DeepSPPARK/docker/worker-run-experiment/.mlflow_env/bin/mlflow
+
 # ssh folder configured for container use (ie permissions/owner must be configured 
 # for user "root", see readme for more info.) It is needed if mlflow tracking uses a
 # sftp artifact backend.
