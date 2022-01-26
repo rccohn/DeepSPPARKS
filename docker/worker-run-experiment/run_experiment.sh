@@ -1,5 +1,4 @@
 #!/bin/bash
-EXP="/home/ryan/Documents/School/Research/Projects/AGG-new/DeepSPPARK/experiments/2022-01-03-vgg16-neu-baseline"
 
 ENV_FILE=.env
 POSITIONAL_ARGS=()
@@ -24,7 +23,6 @@ while (("$#" )); do
 		shift
 		shift
 		;;
-
         --cpu)
 		GPU_ARG=""
 		shift
@@ -36,7 +34,6 @@ while (("$#" )); do
     esac
 done
 
-PROJECT_DIR=${POSITIONAL_ARGS[0]}
 
 if [ -z ${PROJECT_DIR}  ]; then
     echo "missing argumernt 1: path to project to run"
@@ -67,11 +64,20 @@ parse_line(){
     fi
 }
 
+
+# parse environment variables
 while read LINE; do parse_line "${LINE}"; done < ${ENV_FILE}
 
+# python and mlflow executibles
+PYTHON_EXE=${PYTHON_ENV}/python3
+MLFLOW_EXE=${PYTHON_ENV}/mlflow
+
+
 # parse mlflow experiment
-export MLFLOW_EXPERIMENT_NAME=$(python read_params.py ${PARAM_FILE})
+export MLFLOW_EXPERIMENT_NAME=$(${PYTHON_EXE} read_params.py ${PARAM_FILE} 0)
 echo "experiment: ${MLFLOW_EXPERIMENT_NAME}"
+
+PROJECT_URI=$(${PYTHON_EXE} read_params.py ${PARAM_FILE} 1)
 
 # mount datasets as read only
 
@@ -93,7 +99,7 @@ ${MLFLOW_EXE} run  \
     -e ${ENTRYPOINT} `# entrypoint (default main)`\
 	-A network="host -it" `# docker: host networking`\
 	${GPU_ARG}\
-	${PROJECT_DIR}  # project uri
+	${PROJECT_URI}  # project uri
 # -A gpus all `#enable gpu' \
 
 
