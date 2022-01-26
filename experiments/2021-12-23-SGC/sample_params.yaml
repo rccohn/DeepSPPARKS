@@ -2,19 +2,19 @@
 
 mlflow: # relevant mlflow parameters
   project: git@github.com:rccohn/DeepSppark.git#experiments/2021-12-23-SGC # path to this project's directory
-  experiment_name: agg-single  # tracking experiment namei
+  experiment_name: TEST # agg-candidate-grains-single  # tracking experiment namei
   dataset_name: candidate-grains-toy-lmd-v2.0.0  # path relative to dataset root
 
 # cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
-cgr_thresh: [6, 8]
+cgr_thresh: [6, 8] #[6, 8, 10, 12, 14]
 
 # iterations of message passing for 
-k: [1,2,3]
+k: [2, 3] # [1,2,3,4]
 
 # settings for Adam
 optimizer:
-  lr: [0.001, 0.005] # learning rate
-  decay: [0.001, .0005]
+  lr: [0.005, 0.01] #[0.001, 0.005, 0.01] # learning rate
+  decay: [0.0005, 0.01] #[0.001, 0.0005, 0.0001] # adam weight decay
 
 # for nn training
 training:
