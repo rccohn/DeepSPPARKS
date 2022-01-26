@@ -123,7 +123,7 @@ def main():
         mlflow.log_artifact(str(results_path), artifact_path='results')
         results_path = artifact / 'results.html'
         df.to_html(results_path)
-        mlflow.log_artifact(results_path, artifact_path='results')
+        mlflow.log_artifact(str(results_path), artifact_path='results')
         best_results = (df[(df['n_components'] == best_n_components) & (df['pca_whiten'] == best_whiten)
                            & (np.isclose(df['svm-C'], best_c))]).sort_values('cv_fold')
 
