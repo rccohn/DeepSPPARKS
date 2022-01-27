@@ -11,7 +11,10 @@ cgr_thresh: [8, 10] # [6, 8, 10, 12, 14]
 # percent of variance to be preserved by PCA
 pca_var: [25, 80] # [25, 50, 60, 65, 70, 75, 80, 90, 100]
 
-# number of values of c (log-spaced) between 0.01 and 100
+
+# range and number of values of c (log-spaced)
+svm_min_c: 0.05
+svm_max_c: 5
 svm_num_c: 5 # 50
 
 

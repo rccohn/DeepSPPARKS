@@ -103,7 +103,8 @@ def main():
                             X_train = X_train_full[:, :n_components]
                             X_val = X_val_full[:, :n_components]
 
-                            for c in np.logspace(-2, 2, params['svm_num_c']):
+                            for c in np.logspace(params['svm_min_c'], 
+                                                 params['svm_max_c'], params['svm_num_c']):
                                 svm = SVC(C=c, kernel="rbf", gamma="scale")
                                 svm.fit(X_train, y_train)
                                 yp_train = svm.predict(X_train)
