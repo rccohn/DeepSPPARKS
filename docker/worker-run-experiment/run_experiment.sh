@@ -72,14 +72,12 @@ while read LINE; do parse_line "${LINE}"; done < ${ENV_FILE}
 # python and mlflow executibles
 PYTHON_EXE=${PYTHON_ENV}python3
 MLFLOW_EXE=${PYTHON_ENV}mlflow
-echo python ${PYTHON_EXE}
+echo "python exe: ${PYTHON_EXE}"
 
 # parse mlflow experiment
 export MLFLOW_EXPERIMENT_NAME=$(${PYTHON_EXE} read_params.py ${PARAM_FILE} 0)
-echo "experiment: ${MLFLOW_EXPERIMENT_NAME}"
 
 PROJECT_URI=$(${PYTHON_EXE} read_params.py ${PARAM_FILE} 1)
-echo Project URI: ${PROJECT_URI}
 # mount datasets as read only
 
 # note: by default, mlflow only allows unique arguments to be passed to docker 
@@ -87,14 +85,19 @@ echo Project URI: ${PROJECT_URI}
 # a workaround is to pass multiple docker arguments within a single -A argument for mlflow
 # for example, 
 
-echo listing vars
-echo $MLFLOW_TRACKING_URI
-echo ${PARAM_FILE}
-echo ${VGG16_IMAGENET_PATH}
-echo $CONTAINER_SSH
-echo ${RAW_DATA_ROOT}
-echo ${PROCESSED_ROOT}
-echo done
+echo "Experiment paths:"
+echo "    param file: ${PARAM_FILE}"
+echo "    pretrained vgg16/imagenet: ${VGG16_IMAGENET_PATH}"
+echo "    container ssh: ${CONTAINER_SSH}"
+echo "    raw data: ${RAW_DATA_ROOT}"
+echo "    processed data: ${PROCESSED_ROOT}"
+echo "MLflow params"
+echo "    tracking uri: $MLFLOW_TRACKING_URI"
+echo "    experiment name: ${MLFLOW_EXPERIMENT_NAME}"
+echo "    project uri: ${PROJECT_URI}"
+echo "    project version: ${VERSION}"
+echo "    project entrypoint: ${ENTRYPOINT}"
+echo "    GPU? (blank for cpu): ${GPU_ARG}"
 
 ${MLFLOW_EXE} run  \
     -e ${ENTRYPOINT} `# entrypoint (default main)`\
