@@ -136,8 +136,8 @@ def main():
         mlflow.log_metrics({'train_acc': best_results['train_acc'].mean(),
                             'valid_acc': best_results['valid_acc'].mean()})
         for _, row in best_results.iterrows():
-            mlflow.log_metrics({'cv_train_acc': row['train_acc'], 'cv_val_acc':
-                                row['valid_acc']}, step=int(row['cv_fold']))
+            mlflow.log_metrics({'cv_train_acc': row['train_acc'],
+                                'cv_val_acc': row['valid_acc']}, step=int(row['cv_fold']))
 
         for i, (model, split) in enumerate(zip(best_models, splits)):
             mlflow.sklearn.log_model(model, 'models/SVM/cval_{}'.format(i))

@@ -176,7 +176,7 @@ def main():
                                                                           (y_val, yp_val), (y_test, yp_test))]
                         agg_cm(cmlist, return_figure=False, fpath=artifact/'cm.png', artifact_path="figures")
 
-                        mlflow.log_metrics({'train_acc': best_val_acc,
+                        mlflow.log_metrics({'train_acc': best_train_acc,
                                             'val_acc': best_val_acc,
                                             'test_acc': best_test_acc})
 
@@ -246,7 +246,7 @@ def main():
         }
         )
 
-        mlflow.log_metrics({'train_acc': best_val_acc_all,
+        mlflow.log_metrics({'train_acc': best_train_acc_all,
                             'val_acc': best_val_acc_all,
                             'test_acc': best_test_acc_all})
 
