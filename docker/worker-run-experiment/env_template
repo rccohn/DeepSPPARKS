@@ -10,7 +10,7 @@ MLFLOW_TRACKING_URI=http://127.0.0.1:5000
 # directory containing python and mlflow executibles used to parse params and execute 
 # "mlflow run." Note this is just used to run the projec and is not the same environment 
 # that the project itself runs in (ie it does not need ML libraries other than mlflow)
-PYTHON_ENV=/home/USER/DeepSPPARK/docker/worker-run-experiment/.mlflow_env/bin/
+PYTHON_ENV=/home/USER/DeepSPPARKS/docker/worker-run-experiment/.mlflow_env/bin/
 
 # ssh folder configured for container use (ie permissions/owner must be configured 
 # for user "root", see readme for more info.) It is needed if mlflow tracking uses a
