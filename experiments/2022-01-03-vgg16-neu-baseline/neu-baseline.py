@@ -3,8 +3,8 @@ import mlflow
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from deepsppark.utils import parse_params
-from deepsppark.visualize import scree_plot
+from deepspparks.utils import parse_params
+from deepspparks.visualize import scree_plot
 from visualize import pretty_cm
 
 from sklearn.svm import SVC
@@ -21,7 +21,8 @@ def main():
     artifact = Path('/root', 'artifacts')
 
     with mlflow.start_run(run_name='NEU CV baseline', nested=False):
-        mlflow.set_tag('mlflow.runName', 'NEU CV baseline')  # mlflow project run ignores name, so we set it manually
+        mlflow.set_tags({'mlflow.runName': 'NEU CV baseline',
+                         'model': 'sklearn_svm'})  # mlflow project run ignores name, so we set it manually
         print(params['mlflow']['dataset_name'])
         dataset = Dataset(params['mlflow']['dataset_name'])
         dataset.process()

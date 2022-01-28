@@ -58,7 +58,7 @@ ENV PATH="/root/miniconda/envs/env/bin:${PATH}"
 RUN pip install --upgrade numpy==1.21.4
 
 # Copy sppark2graph code and install
-COPY deepsppark deepsppark
+COPY deepspparks deepspparks
 COPY setup.py .
 
 # currently -e flag is needed to install correctly

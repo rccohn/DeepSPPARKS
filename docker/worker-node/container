@@ -1,7 +1,7 @@
 # !/bin/bash
 
 # either run ./container build, delete, or run
-CNAME="rccohn/deepsppark-worker:latest"
+CNAME="rccohn/deepspparks-worker:latest"
 SOURCE_ROOT="../../" # directory contains spparks2graph source code, and setup.py
 
 ATTACH=0
@@ -19,11 +19,11 @@ do
         # the files are deleted after the container is built
 		echo "building container"
 		echo "copying dependencies"
-		cp -r ${SOURCE_ROOT}/deepsppark .
+		cp -r ${SOURCE_ROOT}/deepspparks .
 		cp ${SOURCE_ROOT}/setup.py .
 		docker build -t ${CNAME} .
 		echo "removing temp files"
-		rm -rf deepsppark
+		rm -rf deepspparks
 		rm setup.py
 		shift
 		;;

@@ -4,9 +4,9 @@ import mlflow
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from deepsppark.utils import parse_params
-from deepsppark.visualize import agg_cm, scree_plot
-from deepsppark.metrics import log_classification_report
+from deepspparks.utils import parse_params
+from deepspparks.visualize import agg_cm, scree_plot
+from deepspparks.metrics import log_classification_report
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, confusion_matrix
@@ -143,7 +143,7 @@ def main():
 
 
                         # log results for run
-                        # TODO this could probably be wrapped into a deepsppark function
+                        # TODO this could probably be wrapped into a deepspparks function
                         df = pd.DataFrame(data=results, columns=results_header)
                         results_path = artifact / 'results.csv'
                         df.to_csv(results_path, index_label="index")

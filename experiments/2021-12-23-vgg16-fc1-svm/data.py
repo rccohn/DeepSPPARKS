@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import skimage
 import skimage.io
-from deepsppark.graphs import Graph
+from deepspparks.graphs import Graph
 from tensorflow.keras.applications.vgg16 import VGG16, preprocess_input
 from tensorflow.keras.models import Model, load_model
 

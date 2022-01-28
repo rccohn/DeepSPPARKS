@@ -7,8 +7,8 @@ from typing import Union
 from torch_geometric.nn import SGConv
 import mlflow
 from mlflow import log_params, set_tags, log_artifact
-from deepsppark.visualize import agg_cm
-from deepsppark.metrics import log_classification_report, cm
+from deepspparks.visualize import agg_cm
+from deepspparks.metrics import log_classification_report, cm
 
 
 class SGCNet(torch.nn.Module):
