@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from pycocotools.mask import decode
 from skimage.measure import regionprops_table
-from deepsppark.graphs import Graph, combine_graphs, roll_img
+from deepspparks.graphs import Graph, combine_graphs, roll_img
 import torch
 from torch_geometric.data import Data
 

@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import seaborn as sns
-from deepsppark.utils import parse_params
-from deepsppark.visualize import agg_cm
-from deepsppark.metrics import cm
+from deepspparks.utils import parse_params
+from deepspparks.visualize import agg_cm
+from deepspparks.metrics import cm
 import itertools
 from torch.optim import Adam
 from torch_geometric.data import Data
