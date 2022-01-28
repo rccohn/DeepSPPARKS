@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from deepsppark.utils import parse_params
-from deepsppark.visualize import agg_cm, scree_plot
+from deepsppark.visualize import scree_plot
+from visualize import pretty_cm
 
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
@@ -80,7 +81,7 @@ def main():
             # assume n_components same for all folds, this can be checked with scree plots
             n_components = np.argmax(pca_var * 100 >= var) + 1
 
-            for c in np.logspace(-2, 2, params['svm_num_c']):
+            for c in np.logspace(params['svm_min_c'], params['svm_max_c'], params['svm_num_c']):
                 for whiten in range(2):
                     train_accs = []
                     val_accs = []
@@ -149,13 +150,14 @@ def main():
             ypv = model.predict(X_val)
             cm_train = confusion_matrix(y_train, ypt)
             cm_val = confusion_matrix(y_val, ypv)
-            agg_cm((cm_train, cm_val), return_figure=False,
+            pretty_cm((cm_train, cm_val), class_labels=dataset.labels_inv, return_figure=False,
                    fpath=artifact / 'cm_cv_{}.png'.format(i),
                    artifact_path='figures/confusion_matrix/')
     # TODO log mlflow models, cv train/val acc logged with steps
     #     log final train/val acc
     #     train curves for best params
     #      plotly demo test project- copy from their examples
+
 
 if __name__ == "__main__":
     main()

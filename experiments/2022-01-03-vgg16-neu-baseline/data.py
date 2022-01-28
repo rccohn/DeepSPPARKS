@@ -90,11 +90,8 @@ class Dataset:
         print(n)
         assert n
 
-
-
-
         features = np.zeros((len(files), 4096), float)  # x data
-        targets = np.zeros(len(files), bool)  # classification targets
+        targets = np.zeros(len(files), int)  # classification targets
 
         for i, f in enumerate(files):  # train/graph_xxx.json
             targets[i] = self.labels_fwd[f.name.split('_')[0]]
