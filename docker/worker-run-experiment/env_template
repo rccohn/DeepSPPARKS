@@ -31,6 +31,6 @@ RAW_DATA_ROOT=/home/USER/data/datasets
 PROCESSED_DATA_ROOT=/home/USER/data/processed
 
 # for experiments that use transfer learning with VGG16
-VGG16_IMAGENET_PATH=/home/USER/models/vgg16
+VGG16_IMAGENET_PATH=/home/USER/models/vgg16.h5
 
 
