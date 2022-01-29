@@ -41,7 +41,7 @@ def main():
             # and log best parameters in parent run
             dataset = Dataset(params['mlflow']['dataset_name'], crop, log=False)
             dataset.process(vgg16_path=Path('/', 'root', 'inputs', 'pretrained_model.h5'),
-                            artifact_path=artifact,)
+                            artifact_path=artifact, force=params['force_process_dataset'])
             X_train_raw = dataset.train['X']
             for whiten, whiten_label in enumerate(('no_whiten', 'whiten')):
 
@@ -76,6 +76,7 @@ def main():
                                             'dataset': dataset.dataset_name,
                                             'features': dataset.feature_name,
                                             'targets': dataset.target_name,
+                                            'model': 'sklearn-svm'
                             }
                         )
                         mlflow.log_params({
@@ -235,6 +236,7 @@ def main():
             'dataset': dataset.dataset_name,
             'features': dataset.feature_name,
             'targets': dataset.target_name,
+            'model': 'sklearn-svm'
         }
         )
         mlflow.log_params({

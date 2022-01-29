@@ -22,10 +22,10 @@ def main():
 
     with mlflow.start_run(run_name='NEU CV baseline', nested=False):
         mlflow.set_tags({'mlflow.runName': 'NEU CV baseline',
-                         'model': 'sklearn_svm'})  # mlflow project run ignores name, so we set it manually
+                         'model': 'sklearn-svm'})  # mlflow project run ignores name, so we set it manually
         print(params['mlflow']['dataset_name'])
         dataset = Dataset(params['mlflow']['dataset_name'])
-        dataset.process()
+        dataset.process(force=params['force_process_dataset'])
 
         kfp = params['kfold']
         mlflow.log_params({'kfold_{}'.format(k): v for k, v in kfp.items()})
@@ -58,10 +58,11 @@ def main():
             mlflow.log_artifact(str(fname), 'models/pca')
 
             # whitening does not change fraction of variance explained
-            figpath = artifact / 'pca-scree-{}.html'.format(i)
-            fig = scree_plot(pca_full_unwhiten.explained_variance_ratio_)
-            fig.write_html(figpath)
-            mlflow.log_artifact(str(figpath), 'figures/pca')
+            if not i:
+                figpath = artifact / 'pca-scree.html'.format(i)
+                fig = scree_plot(pca_full_unwhiten.explained_variance_ratio_)
+                fig.write_html(figpath)
+                mlflow.log_artifact(str(figpath), 'figures/pca')
 
         # assume pca variance vs number of components is similar for all cv splits
         # this can be verified by looking at scree plots

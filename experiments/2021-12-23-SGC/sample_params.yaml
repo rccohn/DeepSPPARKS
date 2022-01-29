@@ -1,7 +1,7 @@
 # sample parameters
 
 mlflow: # relevant mlflow parameters
-  project: git@github.com:rccohn/DeepSppark.git#experiments/2021-12-23-SGC # path to this project's directory
+  project: git@github.com:rccohn/DeepSpparks.git#experiments/2021-12-23-SGC # path to this project's directory
   experiment_name: TEST # agg-candidate-grains-single  # tracking experiment namei
   dataset_name: candidate-grains-toy-lmd-v2.0.0  # path relative to dataset root
 
@@ -21,3 +21,5 @@ training:
   max_iter: 50
   checkpoint_iter: 10 # model weights/metrics saved at each checkpoint
 
+# recompute features/targets, even if existing processed data is found
+force_process_dataset: False

@@ -1,7 +1,7 @@
 # sample parameters
 
 mlflow: # relevant mlflow parameters
-  project: git@github.com:rccohn/DeepSppark.git#experiments/2021-12-23-vgg16-fc1-svm # path to this project's directory
+  project: git@github.com:rccohn/DeepSpparks.git#experiments/2021-12-23-vgg16-fc1-svm # path to this project's directory
   experiment_name: TEST # agg-single  # tracking experiment name
   dataset_name: candidate-grains-toy-lmd-v2.0.0  # path relative to dataset root
 
@@ -17,4 +17,6 @@ svm_min_c: 0.05
 svm_max_c: 5
 svm_num_c: 5 # 50
 
+# recompute features/targets, even if existing processed data is found
+force_process_dataset: False
 

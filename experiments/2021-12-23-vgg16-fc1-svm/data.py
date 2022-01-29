@@ -64,7 +64,7 @@ class Dataset:
         self._processed_path = Path(self.processed_root, self.dataset_name, 
                                     self.feature_name, crop_str, self.target_name)
         if log:
-            self._log()
+            self.log_()
 
     def load(self):
         """
@@ -80,7 +80,7 @@ class Dataset:
         test = np.load(Path(self._processed_path, 'test.npz'))
         self.test = {'X': test['X'], 'y': test['y']}
 
-    def _log(self):
+    def log_(self):
         mlflow.set_tags({
                 'dataset': self.dataset_name,
                 'features': self.feature_name,

@@ -75,9 +75,25 @@ MLFLOW_EXE=${PYTHON_ENV}mlflow
 echo "python exe: ${PYTHON_EXE}"
 
 # parse mlflow experiment
-export MLFLOW_EXPERIMENT_NAME=$(${PYTHON_EXE} read_params.py ${PARAM_FILE} 0)
+export MLFLOW_EXPERIMENT_NAME=$( ${PYTHON_EXE} \
+	read_params.py ${PARAM_FILE} experiment )
 
-PROJECT_URI=$(${PYTHON_EXE} read_params.py ${PARAM_FILE} 1)
+
+# for debugging, use file-based uri to avoid excessive git commits
+if [ ${VERSION} = ".file" ]; 
+then # .file is not a valid git version, use file instead
+	VERSION_ARG="" # don't use -v flag
+	VERSION="" # don't specify version
+	# set URI to file instead of git repo
+	PROJECT_URI=$(${PYTHON_EXE} read_params.py \
+		${PARAM_FILE} project_file)
+else
+	# project is from git repo, use version
+	VERSION_ARG="-v"
+	PROJECT_URI=$(${PYTHON_EXE} read_params.py \
+		${PARAM_FILE} project_uri)
+fi
+
 # mount datasets as read only
 
 # note: by default, mlflow only allows unique arguments to be passed to docker 
@@ -95,13 +111,14 @@ echo "MLflow params"
 echo "    tracking uri: $MLFLOW_TRACKING_URI"
 echo "    experiment name: ${MLFLOW_EXPERIMENT_NAME}"
 echo "    project uri: ${PROJECT_URI}"
-echo "    project version: ${VERSION}"
+echo "    project version (blank if file): ${VERSION}"
 echo "    project entrypoint: ${ENTRYPOINT}"
 echo "    GPU? (blank for cpu): ${GPU_ARG}"
 
+
 ${MLFLOW_EXE} run  \
     -e ${ENTRYPOINT} `# entrypoint (default main)`\
-    -v ${VERSION} `# mlflow project version`\
+    ${VERSION_ARG} ${VERSION} `# mlflow project version`\
 	-A network="host -it" `# docker: host networking`\
 	${GPU_ARG}\
 	${PROJECT_URI}  # project uri

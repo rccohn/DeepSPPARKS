@@ -1,7 +1,7 @@
 # sample parameters
 
 mlflow: # relevant mlflow parameters
-  project: git@github.com:rccohn/DeepSppark.git#experiments/2022-01-03-vgg16-neu-baseline # path to this project's directory
+  project: git@github.com:rccohn/DeepSpparks.git#experiments/2022-01-03-vgg16-neu-baseline # path to this project's directory
   experiment_name: TEST # neu-baseline  # tracking experiment namei
   dataset_name: NEU-CLS-toy  # path relative to dataset root
 
@@ -18,4 +18,5 @@ svm_min_c: 0.5
 svm_max_c: 10
 svm_num_c: 5 # 50
 
-
+# recompute features/targets, even if existing processed data is found
+force_process_dataset: False
