@@ -14,8 +14,10 @@ pca_var: [25, 80] # [25, 50, 60, 65, 70, 75, 80, 90, 100]
 
 
 # range and number of values of c (log-spaced)
-svm_min_c: 0.05
-svm_max_c: 5
+# min_c and max_c are powers of 10
+# max_c = 2 gives c=10^2 = 100
+svm_min_c: -1.5
+svm_max_c: 1.5
 svm_num_c: 5 # 50
 
 # recompute features/targets, even if existing processed data is found

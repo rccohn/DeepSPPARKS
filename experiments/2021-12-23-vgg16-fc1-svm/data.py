@@ -170,7 +170,7 @@ class Dataset:
                 # predict returns numpy array, no conversion from tensor needed
                 fc1 = fc1_extractor.predict(imgray)
                 features[i, :] = fc1
-            data_path = (self._processed_path / '{}.npz'.format(subset)
+            data_path = (self._processed_path / '{}.npz'.format(subset))
             print('saving processed data to {}'.format(data_path))
             data = {'X': features, 'y': targets}
             self.__setattr__(subset, data)
