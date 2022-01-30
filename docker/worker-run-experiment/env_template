@@ -12,7 +12,7 @@ MLFLOW_TRACKING_URI=http://127.0.0.1:5000
 # that the project itself runs in (ie it does not need ML libraries other than mlflow)
 # To be compatible with any type of environment (venv, conda, etc), we point to the
 # directory containing the python binary itself and not just the root of the environment
-PYTHON_ENV=/home/USER/DeepSPPARKS/docker/worker-run-experiment/.mlflow_env/bin/
+PYTHON_ENV=/home/USER/DeepSPPARKS/docker/worker-run-experiment/.mlflow_env/bin
 
 # ssh folder configured for container use (ie permissions/owner must be configured 
 # for user "root", see readme for more info.) It is needed if mlflow tracking uses a

@@ -4,7 +4,6 @@ ENV_FILE=.env # defines env variables such as MLFLOW_TRACKING_URI, location of d
 GPU_ARG="-A gpus=all" # run with gpus unless --cpu is specified
 PARAM_FILE=.run_params.yaml # path to input parameter deck for mlflow project
 ENTRYPOINT="main" # mlflow project entrypoint
-VERSION="main" # mlflow project version (git branch name or commit hash)
 
 POSITIONAL_ARGS=()
 while (("$#" )); do
@@ -21,11 +20,6 @@ while (("$#" )); do
 		;;
 	--entrypoint)
 		ENTRYPOINT=$2
-		shift
-		shift
-		;;
-	--version)
-		VERSION=$2
 		shift
 		shift
 		;;
@@ -70,29 +64,17 @@ parse_line(){
 while read LINE; do parse_line "${LINE}"; done < ${ENV_FILE}
 
 # python and mlflow executibles
-PYTHON_EXE=${PYTHON_ENV}python3
-MLFLOW_EXE=${PYTHON_ENV}mlflow
+PYTHON_EXE=${PYTHON_ENV}/python3
+MLFLOW_EXE=${PYTHON_ENV}/mlflow
 echo "python exe: ${PYTHON_EXE}"
 
-# parse mlflow experiment
-export MLFLOW_EXPERIMENT_NAME=$( ${PYTHON_EXE} \
-	read_params.py ${PARAM_FILE} experiment )
-
-
-# for debugging, use file-based uri to avoid excessive git commits
-if [ ${VERSION} = ".file" ]; 
-then # .file is not a valid git version, use file instead
-	VERSION_ARG="" # don't use -v flag
-	VERSION="" # don't specify version
-	# set URI to file instead of git repo
-	PROJECT_URI=$(${PYTHON_EXE} read_params.py \
-		${PARAM_FILE} project_file)
-else
-	# project is from git repo, use version
-	VERSION_ARG="-v"
-	PROJECT_URI=$(${PYTHON_EXE} read_params.py \
-		${PARAM_FILE} project_uri)
-fi
+# parse mlflow experiment name, project uri,
+# and version from param file
+VARS=( $(${PYTHON_EXE} read_params.py ${PARAM_FILE}) )
+for v in ${VARS[@]};
+do
+	export ${v}
+done
 
 # mount datasets as read only
 

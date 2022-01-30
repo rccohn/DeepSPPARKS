@@ -39,15 +39,19 @@ def main():
         pca_all = (pca_unwhiten, pca_whiten)
 
         for i, s in enumerate(splits):
+            print('training split {}'.format(i))
             X = dataset.X[s[0]]
+            print('fitting unwhitened pca')
             pca_full_unwhiten = PCA(n_components=min(X.shape), svd_solver='full', whiten=False)
             pca_full_unwhiten.fit(X)
+            print('fitting whitened pca')
             pca_full_whiten = PCA(n_components=min(X.shape), svd_solver='full', whiten=True)
             pca_full_whiten.fit(X)
 
             pca_unwhiten.append(pca_full_unwhiten)
             pca_whiten.append(pca_full_whiten)
-
+            
+            print('saving and logging pca models')
             fname = artifact / 'pca-{}-no-whiten.joblib'.format(i)
             assert fname.parent.is_dir(), print(artifact)
             joblib.dump(pca_full_unwhiten, fname)
@@ -59,6 +63,7 @@ def main():
 
             # whitening does not change fraction of variance explained
             if not i:
+                print('generating scree plots')
                 figpath = artifact / 'pca-scree.html'.format(i)
                 fig = scree_plot(pca_full_unwhiten.explained_variance_ratio_)
                 fig.write_html(figpath)
@@ -68,7 +73,7 @@ def main():
         # this can be verified by looking at scree plots
         pca_var = pca_full_unwhiten.explained_variance_ratio_.cumsum()
         # fit pca once, and use subsets of data for individual experiments
-
+        
         # metrics to store as artifact (to avoid making too many runs)
         results_header = ("n_components", "% variance_preserved", "svm-C",
                           'pca_whiten', "cv_fold", 'train_acc', 'valid_acc')
@@ -82,8 +87,9 @@ def main():
         for var in params['pca_var']:  # PCA explained variance
             # assume n_components same for all folds, this can be checked with scree plots
             n_components = np.argmax(pca_var * 100 >= var) + 1
-
+            
             for c in np.logspace(params['svm_min_c'], params['svm_max_c'], params['svm_num_c']):
+                print('fitting models for var={}, c={:.3f}'.format(var, c))
                 for whiten in range(2):
                     train_accs = []
                     val_accs = []
@@ -119,7 +125,7 @@ def main():
 
         # results_header = ("n_components", "% variance_preserved", "svm-C",
         #               'pca_whiten', "cv_fold", 'train_acc', 'valid_acc')
-
+        print('processing final results')
         df = pd.DataFrame(data=results, columns=results_header)
         results_path = artifact / 'results.csv'
         df.to_csv(results_path, index_label="index")
@@ -143,6 +149,7 @@ def main():
                                 'cv_val_acc': row['valid_acc']}, step=int(row['cv_fold']))
 
         for i, (model, split) in enumerate(zip(best_models, splits)):
+            print('saving final model for cval fold {}'.format(i))
             mlflow.sklearn.log_model(model, 'models/SVM/cval_{}'.format(i))
             y_train, y_val = dataset.y[split[0]], dataset.y[split[1]]
             pca = pca_all[best_whiten][i]

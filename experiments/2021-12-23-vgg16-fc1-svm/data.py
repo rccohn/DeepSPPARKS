@@ -91,7 +91,9 @@ class Dataset:
 
     def process(self, vgg16_path=None, force=False, log_featurizer=False, artifact_path=None):
         keys = ('train', 'val', 'test')
+        print('processing data')
         if not force:  # if force == True, skip this step and always process files
+            print("Looking for existing processed data")
             try:  # load existing data
                 self.load()
                 print('Loaded existing processed data')
@@ -125,10 +127,10 @@ class Dataset:
                   (0, 0, 0,): 0.}  # grain boundaries: 0 signal
         
         for subset in keys:  # train, val, test
-
             # use sort to keep order consistent --> easier to look at individual samples
             files = sorted((self._raw_path / subset).glob('*.json'))
             n = len(files)
+            print('processing dataset {} ({} files)'.format(subset, n))
             checkpoint = (0, n//2, n-1)  # index to save sample images for verification
             features = np.zeros((len(files), 4096), float)  # x data
             targets = np.zeros(len(files), float)  # classification targets
@@ -168,7 +170,8 @@ class Dataset:
                 # predict returns numpy array, no conversion from tensor needed
                 fc1 = fc1_extractor.predict(imgray)
                 features[i, :] = fc1
-
+            data_path = (self._processed_path / '{}.npz'.format(subset)
+            print('saving processed data to {}'.format(data_path))
             data = {'X': features, 'y': targets}
             self.__setattr__(subset, data)
-            np.savez(self._processed_path / '{}.npz'.format(subset), **data)
+            np.savez(data_path, **data)

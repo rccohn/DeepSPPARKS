@@ -49,7 +49,7 @@ class SGCNet(torch.nn.Module):
 
     def _log(self):
         set_tags({
-            'model_name': self.model_name
+            'model': self.model_name
             }
         )
         log_params({

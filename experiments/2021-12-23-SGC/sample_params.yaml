@@ -1,7 +1,8 @@
 # sample parameters
 
 mlflow: # relevant mlflow parameters
-  project: git@github.com:rccohn/DeepSpparks.git#experiments/2021-12-23-SGC # path to this project's directory
+  project_uri: git@github.com:rccohn/DeepSpparks.git#experiments/2021-12-23-SGC # path to this project's directory
+  project_version: main # name of git branch, git commit hash, or ".file" to run locally instead of from git repo
   experiment_name: TEST # agg-candidate-grains-single  # tracking experiment namei
   dataset_name: candidate-grains-toy-lmd-v2.0.0  # path relative to dataset root
 

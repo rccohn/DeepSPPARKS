@@ -50,6 +50,7 @@ def main():
                 # don't use tracking server to store results for each of these in a run
                 # instead,
 
+                print('fitting pca (whitening = {}'.format(bool(whiten)))
                 pca = PCA(n_components=min(X_train_raw.shape),
                           svd_solver='full', whiten=bool(whiten))
                 pca.fit(X_train_raw)
@@ -106,6 +107,8 @@ def main():
 
                             for c in np.logspace(params['svm_min_c'], 
                                                  params['svm_max_c'], params['svm_num_c']):
+                                print('fitting svm for cgr_thresh = {}, var={}, whiten={}, c={}'.format(
+                                      cgr_thresh, var, whiten, c))
                                 svm = SVC(C=c, kernel="rbf", gamma="scale")
                                 svm.fit(X_train, y_train)
                                 yp_train = svm.predict(X_train)
@@ -185,6 +188,7 @@ def main():
         # TODO figure out how to remove redundant code. propogate best figures and best classification report?
         # log results for all runs
         df_list = []
+        print('logging final results for best model/parameters')
         for results, crop, whiten, cgr_thresh in results_all:
             df = pd.DataFrame(results, columns=results_header)
             # broadcast to all rows

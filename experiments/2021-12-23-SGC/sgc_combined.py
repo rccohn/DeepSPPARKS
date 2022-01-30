@@ -72,7 +72,7 @@ def main():
 
         # k already logged with above log_params, so we can't call model._log() to log the rest)
         mlflow.set_tags({
-            'model_name': model.model_name,
+            'model': model.model_name,
         })
         # log best results to outer run
         mlflow.log_params(best_params_all)

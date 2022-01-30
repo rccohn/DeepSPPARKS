@@ -28,6 +28,15 @@ while (("$#")); do
 			shift
 			shift
 			;;
+		--shutdown)
+			SHUTDOWN=1
+			shift
+			;;
+		--reset-queue)
+			echo "resetting queue"
+			mv ${FINISHED}/* ${QUEUE}
+			exit 0
+			;;
 	esac
 done
 
@@ -46,6 +55,7 @@ done
 
 if [ ${SHUTDOWN} -eq 1 ]; then
 	echo "Shutting down" 2>&1 | tee -a ${LOG}
+	sleep 300 # give time to cancel shutdown
 	sudo shutdown -h now 2>&1 | tee -a ${LOG}
 fi
 
