@@ -1,0 +1,17 @@
+name: sgc-simple-repeat20
+
+# See DeepSPPARK/docker/agg-worker for container
+docker_env:
+  image: rccohn/deepspparks-worker:latest
+
+  volumes:
+    - "${PARAM_FILE}:/root/inputs/params.yaml:ro" # params yaml file
+    - "${CONTAINER_SSH}:/root/.ssh:ro" # ~/.ssh (only needed for sftp artifact stores)
+    - "${RAW_DATA_ROOT}:/root/data/datasets:ro" # for dataset
+    - "${PROCESSED_DATA_ROOT}:/root/data/processed:rw"  # for processed data
+
+entry_points:
+  main:
+    command: bash start.sh
+  debug:
+    command: bash
