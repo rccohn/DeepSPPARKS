@@ -3,7 +3,7 @@ import mlflow
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from deepspparks.utils import parse_params
+from deepspparks.utils import load_params
 from deepspparks.visualize import scree_plot
 from visualize import pretty_cm
 
@@ -17,7 +17,7 @@ import joblib
 
 def main():
     print('Setting up experiment')
-    params = parse_params('/root/inputs/params.yaml')
+    params = load_params('/root/inputs/params.yaml')
     artifact = Path('/root', 'artifacts')
 
     with mlflow.start_run(run_name='NEU CV baseline', nested=False):

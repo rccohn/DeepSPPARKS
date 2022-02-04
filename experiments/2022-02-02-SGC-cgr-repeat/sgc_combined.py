@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 import seaborn as sns
-from deepspparks.utils import parse_params
+from deepspparks.utils import load_params
 from deepspparks.visualize import agg_cm
 from deepspparks.metrics import cm
 import itertools
@@ -55,15 +55,17 @@ def format_targets(data, aggregator, thresh):
 
 
 def main():
+    param_file = '/root/inputs/params.yaml'
     print('parsing params')
-    params = parse_params('/root/inputs/params.yaml')  # parse experiment parameters
+    params = load_params(param_file)  # parse experiment parameters
     artifact = Path('/', 'root', 'artifacts')  # path to save artifacts before logging to mlflow artifact repository
 
     # when running with mlflow project, run_name is not actually used, since the project generates a run
     # ID associated with the project. Instead, we set the runName tag manually with mlflow.set_tag()
     with mlflow.start_run(nested=False):
         mlflow.set_tag('mlflow.runName', 'cgr-SGC')
-
+        mlflow.log_param('repeat_aggregator', params['repeat_aggregator'])
+        mlflow.log_artifact(param_file)
         # initialize and log dataset
         dataset = Dataset(params['mlflow']['dataset_name'])
         dataset.process(force=params['force_process_dataset'])

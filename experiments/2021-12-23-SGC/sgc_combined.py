@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 import seaborn as sns
-from deepspparks.utils import parse_params
+from deepspparks.utils import load_params
 from deepspparks.visualize import agg_cm
 from deepspparks.metrics import cm
 import itertools
@@ -20,7 +20,7 @@ from torch_geometric.data import Data
 
 def main():
     print('parsing params')
-    params = parse_params('/root/inputs/params.yaml')  # parse experiment parameters
+    params = load_params('/root/inputs/params.yaml')  # parse experiment parameters
     artifact = Path('/', 'root', 'artifacts')  # path to save artifacts before logging to mlflow artifact repository
 
     # when running with mlflow project, run_name is not actually used, since the project generates a run
@@ -130,6 +130,7 @@ def main():
         figpath = artifact / 'train_curve.html'
         fig.write_html(artifact / 'train_curve.html')
         mlflow.log_artifact(str(figpath), "Figures")
+
 
 if __name__ == "__main__":
     main()

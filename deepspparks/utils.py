@@ -71,7 +71,7 @@ def pyg_edgelist(g):
     return np.asarray(g.eli).T
 
 
-def parse_params(in_path):
+def load_params(in_path):
     """
     Parses parameter input yaml file for experiments.
 

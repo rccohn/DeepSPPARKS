@@ -4,7 +4,7 @@ import mlflow
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from deepspparks.utils import parse_params
+from deepspparks.utils import load_params
 from deepspparks.visualize import agg_cm, scree_plot
 from deepspparks.metrics import log_classification_report
 from sklearn.svm import SVC
@@ -15,7 +15,7 @@ import joblib
 
 def main():
     print('Setting up experiment')
-    params = parse_params('/root/inputs/params.yaml')  # input deck
+    params = load_params('/root/inputs/params.yaml')  # input deck
     artifact = Path('/root', 'artifacts')  # path to save artifacts before logging to mlflow artifact repository
     # when running with mlflow project, run_name is not actually used, since the project generates a run
     # ID associated with the project. Instead, we set the runName tag manually with mlflow.set_tag()
