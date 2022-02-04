@@ -102,7 +102,9 @@ def inner_run(
         dictionary with best results from run
 
     """
-    with mlflow.start_run(run_name="training_k={}".format(k), nested=True):
+    # converts boolean mask to string of 1/0 values for easier viewing
+    ablation_str = "".join([str(x) for x in feature_mask.long().tolist()])
+    with mlflow.start_run(run_name="ablation {}".format(ablation_str), nested=True):
         dataset._log()
         print(
             "running experiment for"
@@ -119,8 +121,7 @@ def inner_run(
                 "loss": "nll",
                 "optimizer": "Adam",
                 "cgr_thresh": thresh,
-                # log feature mask as string of 1s and 0s instead of boolean array
-                "feature_mask": "".join([str(x) for x in feature_mask.long().tolist()]),
+                "feature_mask": ablation_str,
             }
         )
 
@@ -165,7 +166,7 @@ def main():
     # ID associated with the project. Instead, we set the runName tag manually
     # with mlflow.set_tag()
     with mlflow.start_run(nested=False):
-        mlflow.set_tag("mlflow.runName", "cgr-SGC")
+        mlflow.set_tag("mlflow.runName", "SGC-feature-ablation")
         mlflow.log_artifact(param_file)
 
         # initialize and log dataset
