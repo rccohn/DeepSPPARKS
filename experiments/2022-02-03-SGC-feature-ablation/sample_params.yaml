@@ -8,6 +8,8 @@ mlflow: # relevant mlflow parameters
   dataset_name: candidate-grains-repeat20-toy-lmd-v1.0.0  # path relative to dataset root
 
 # how cgr values from 20 runs are combined into single output for classification
+# note this still works for non-repeated runs as long as aggregator([x,]) = x
+# ie mean, min, max will work
 repeat_aggregator: mean
 
 # cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
@@ -25,6 +27,15 @@ optimizer:
 training:
   max_iter: 50
   checkpoint_iter: 10 # model weights/metrics saved at each checkpoint
+
+# min and max (inclusive) number of features to include during ablation
+# study. Code will iterate through all possible combinations of each 
+# feature. for example, if the data has 3 features, and 
+# min_n_feat=1 and max_n_feat = 3, experiments will be run for:
+# [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 0], [1, 0, 1], [0, 1, 1], and [1, 1, 1]
+
+min_n_feat: 1
+max_n_feat: 7
 
 # recompute features/targets, even if existing processed data is found
 force_process_dataset: False
