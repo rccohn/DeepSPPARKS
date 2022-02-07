@@ -23,7 +23,7 @@ class Dataset:
         else:
             self.dataset_name = name
         self.feature_name = "grain_properties_single_v1"  # description of features
-        self.target_name = "candidate_growth_ratio"  # description of targets
+        self.target_name = "candidate_growth_ratio_r20"  # description of targets
 
         self.raw_root = Path(raw_root, name)
         self.processed_root = Path(
@@ -106,9 +106,9 @@ class Dataset:
             subgraphs = []
             for f in files:
                 sg = Graph.from_json(f)
-                # won't use more than 4 iterations of message passing, only
-                # need subgraph with r=4 only 1 candidate grain per graph,
-                # with node index g.cidx[0]
+                # won't use more than 4 iterations of message passing,
+                # so we only need subgraphs with r=4
+                # only 1 candidate grain per graph, with node index g.cidx[0]
                 sg = sg.get_subgraph(center=sg.cidx[0], r=4)
                 subgraphs.append(sg)
             g = combine_graphs(subgraphs)
@@ -124,8 +124,10 @@ class Dataset:
             x = np.zeros(
                 (len(g.nodes), len(props) + 2), dtype=float
             )  # props + grain "type" + degree
+
+            # Note it is assumed all nodes in graph have same number of repeats
             y = np.zeros(
-                len(g.nodes), float
+                (len(g.nodes), len(g.nodes[0]["grain_size"])), float
             )  # True/False classification of abnormal grain growth
 
             nli = g.nli  # ordered node indices
@@ -140,7 +142,7 @@ class Dataset:
                 feat = np.zeros(len(props) + 2)
 
                 # first 2 features are grain type (1 for candidate, 0.5 for red grain,
-                # 0 for blue grain)  and number of neighbors (node degree)
+                # 0 for blue grain  and number of neighbors (node degree)
                 feat[0] = [1, 0, 0.5][
                     node["grain_type"]
                 ]  # 1 -> candidate, 0 -> low mobility, 0.5 -> high mobility
@@ -149,8 +151,10 @@ class Dataset:
                 for i, p in enumerate(props):
                     feat[2 + i] = float(rprops[p][0])
 
-                gs = node["grain_size"][0]
-                y[n] = gs[-1] / gs[0]  # candidate growth ratio
+                # target is growth ratio for
+                gs = np.stack(node["grain_size"])
+
+                y[n] = gs[:, -1] / gs[:, 0]  # candidate growth ratio
 
                 x[n] = feat
 

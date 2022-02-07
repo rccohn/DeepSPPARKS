@@ -1,0 +1,27 @@
+# sample parameters
+
+mlflow: # relevant mlflow parameters
+  # path to this project's directory
+  project_uri: git@github.com:rccohn/DeepSpparks.git#experiments/2022-02-07-SGC-regression
+  project_version: main
+  experiment_name: TEST # tracking experiment name
+  dataset_name: candidate-grains-repeat20-toy-lmd-v1.0.0  # path relative to dataset root
+
+# how cgr values from multiple runs are combined into single output for classification
+repeat_aggregator: mean
+
+# iterations of message passing for
+k: [2, 3] # [1,2,3,4]
+
+# settings for Adam
+optimizer:
+  lr: [0.005, 0.01] #[0.001, 0.005, 0.01] # learning rate
+  decay: [0.0005, 0.01] #[0.001, 0.0005, 0.0001] # adam weight decay
+
+# for nn training
+training:
+  max_iter: 50
+  checkpoint_iter: 10 # model weights/metrics saved at each checkpoint
+
+# recompute features/targets, even if existing processed data is found
+force_process_dataset: False
