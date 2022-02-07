@@ -350,16 +350,28 @@ def train_curve(
 
 
 def regression_results_plot(
-    gt_train, yp_train, gt_val, yp_val, gt_test, yp_test, title=""
+    gt_train, yp_train, gt_val, yp_val, gt_test, yp_test, y_min=0, y_max=1, title=""
 ):
     """
     Plots predicted vs ground truth values for train, validation, and testing sets on
     separate subplots with y=x overlayed in the background for reference.
+
+    It is common to scale y data for regression y_scale = (y-y_min)/(y_max-y_min), but
+    it is often desirable to view the data in its original scale during visualization.
+    Thus, passing y_min and y_max, the min and max y values used to scale the data,
+    will result in data being returned to its original scale:
+    y_original = y_scale*(y_max-y_min) + y_min
+    The default values, 0 and 1, do not affect the scale.
+
     Parameters
     ----------
     gt_train, yp_train, gt_val, yp_val, gt_test, yp_test: array like
         1d array corresponding to ground truth (gt) or predicted (yp) values
         for training, validation, and testing sets
+    y_min, y_max: int or float
+        used to transform scaled data back to its original scale, as described above.
+        Default values y_min=0, y_max=1 leave the data as-is.
+
     title: str
         Title of entire figure (ie not individual subplots)
     Returns
@@ -367,6 +379,16 @@ def regression_results_plot(
     fig: figure
         plotly figure object displaying results in the format described above.
     """
+
+    def unscale(y_scale, y_max_scale=y_max, y_min_scale=y_min):
+        return (y_scale * (y_max_scale - y_min_scale)) + y_min_scale
+
+    gt_train = unscale(gt_train)
+    yp_train = unscale(yp_train)
+    gt_val = unscale(gt_val)
+    yp_val = unscale(yp_val)
+    gt_test = unscale(gt_test)
+    yp_test = unscale(yp_test)
 
     min_value = min(gt_train)
     max_value = max(gt_train)

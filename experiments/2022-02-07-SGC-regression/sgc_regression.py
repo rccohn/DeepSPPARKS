@@ -1,15 +1,10 @@
 from data import Dataset
 import mlflow
 from sgc_model import SGCNet, train_loop
-
 from pathlib import Path
-
 from deepspparks.utils import load_params
 from deepspparks.visualize import regression_results_plot
-
-
 import itertools
-
 from torch.optim import Adam
 from torch_geometric.data import Data
 
@@ -108,6 +103,7 @@ def main():
                     params["training"]["max_iter"],
                     params["training"]["checkpoint_iter"],
                     artifact,
+                    (dataset.y_min, dataset.y_max),
                 )
                 model.load_state_dict(sd)
                 mlflow.pytorch.log_model(model, artifact_path="models/SGC")
@@ -169,6 +165,8 @@ def main():
             yp_val.squeeze(),
             y_test,
             yp_test.squeeze(),
+            dataset.y_min,
+            dataset.y_max,
             "CGR values",
         )
         figpath = artifact / "regression_results.html"

@@ -35,17 +35,19 @@ class SGCNet(torch.nn.Module):
         self.double()
 
         # for logging
-        self.model_name = "SGCNet-regression-v1"
+        # v1 uses squared output layer
+        # v2 uses sigmoid output and requires scaled y-values
+        self.model_name = "SGCNet-regression-v2"
         self.k = k
         if log:
             self._log()
 
     def forward(self, data):
         x = self.conv(data.x, data.edge_index)
-        # growth ratio must be non-negative
-        # thus, we square the output to prevent nn from
-        # predicting invalid values
-        return torch.square(x)
+        # outputs bounded between 0 and 1 (cannot be non-negative)
+        # predictions are scaled and need to be transformed
+        # before being converted back into real y values
+        return torch.sigmoid(x)
 
     # predict needed for mlflow.torch.save_model to include pyfunc
     def predict(self, data, mask=None):
@@ -127,6 +129,7 @@ def train_loop(
     max_iterations,
     checkpoint_iterations,
     artifact_root,
+    yscale=(0, 1),
 ):
     """
     Training a single model with a fixed set of parameters.
@@ -152,6 +155,11 @@ def train_loop(
 
     artifact_root: Path object
         temp path for local artifact storage BEFORE calling mlflow.log_artifact()
+
+    yscale: tuple(int, int)
+        optional. if specified, scaled y data is 'unscaled' to its original value,
+        see deepspparks.visualize.regression_results_plot() for more info
+        By default, values are not scaled.
 
     Returns
     --------
@@ -246,7 +254,15 @@ def train_loop(
     gttest = data_test.y[data_test.candidate_mask].detach().numpy()
     figpath = artifact_root / "train_results.html"
     fig = regression_results_plot(
-        gtt, ypt.squeeze(), gtv, ypv.squeeze(), gttest, yptest.squeeze(), "cgr values"
+        gtt,
+        ypt.squeeze(),
+        gtv,
+        ypv.squeeze(),
+        gttest,
+        yptest.squeeze(),
+        yscale[0],
+        yscale[1],
+        "cgr values",
     )
     fig.write_html(figpath)
     log_artifact(str(figpath), "figures")

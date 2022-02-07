@@ -23,7 +23,8 @@ class Dataset:
         else:
             self.dataset_name = name
         self.feature_name = "grain_properties_single_v1"  # description of features
-        self.target_name = "candidate_growth_ratio_r20"  # description of targets
+        # outputs scaled as well as inputs
+        self.target_name = "candidate_growth_ratio_r20_scaled"  # description of targets
 
         self.raw_root = Path(raw_root, name)
         self.processed_root = Path(
@@ -31,8 +32,10 @@ class Dataset:
         )
 
         self.class_labels = ("Normal grain growth", "Abnormal grain growth")
-        self.means = None  # means for normalizing
-        self.stds = None  # stds for normalizing
+        self.x_means = None  # means for normalizing
+        self.x_stds = None  # stds for normalizing
+        self.y_min = None  # minimum observed cgr value is 0 (candidate grain consumed)
+        self.y_max = None  # max observed cgr value from training data, for scaling
         self.train = None  # training dataset
         self.val = None  # validation dataset
         self.test = None  # testing dataset
@@ -52,10 +55,14 @@ class Dataset:
 
         meanspath = Path(self.processed_root, "normalization_means.pt")
         if meanspath.is_file():
-            self.means = torch.load(meanspath)
+            self.x_means = torch.load(meanspath)
         stdspath = Path(self.processed_root, "normalization_stds.pt")
         if stdspath.is_file():
-            self.stds = torch.load(stdspath)
+            self.x_stds = torch.load(stdspath)
+
+        y_min_max_path = Path(self.processed_root, "y_min_max.pt")
+        if y_min_max_path.is_file():
+            self.y_min, self.y_max = torch.load(y_min_max_path)
 
     def process(self, force=False):
         """
@@ -176,18 +183,26 @@ class Dataset:
         # note that we skip the first column (grain type) as it is categorical and
         # already bound between 0 and 1
 
-        self.means = torch.mean(subsets["train"].x[:, 1:], dim=0)
-        self.stds = torch.std(subsets["train"].x[:, 1:], dim=0)
+        self.x_means = torch.mean(subsets["train"].x[:, 1:], dim=0)
+        self.x_stds = torch.std(subsets["train"].x[:, 1:], dim=0)
+        self.y_max = float(torch.max(subsets["train"].y))
+        self.y_min = 0  # several trials have cgr = 0, so to make this as
+        # general as possible we set the limit to 0
 
         # normalize continuous data to 0-mean and unit std
         for k, v in subsets.items():
-            subsets[k].x[:, 1:] = (v.x[:, 1:] - self.means) / self.stds
+            subsets[k].x[:, 1:] = (v.x[:, 1:] - self.x_means) / self.x_stds
+            # y_min is currently 0, but we include it for generality
+            # in case a different dataset has nonzero y_min values later
+            subsets[k].y = (subsets[k].y - self.y_min) / (self.y_max - self.y_min)
+
             # save data to processed_root
             processed = Path(self.processed_root, "{}.pt".format(k))
             torch.save(subsets[k], processed)
 
-        torch.save(self.means, Path(self.processed_root, "normalization_means.pt"))
-        torch.save(self.stds, Path(self.processed_root, "normalization_stds.pt"))
+        torch.save(self.x_means, Path(self.processed_root, "normalization_means.pt"))
+        torch.save(self.x_stds, Path(self.processed_root, "normalization_stds.pt"))
+        torch.save([self.y_min, self.y_max], Path(self.processed_root, "y_min_max.pt"))
 
         self.train = subsets["train"]
         self.val = subsets["val"]
@@ -217,9 +232,9 @@ class Dataset:
         data.test = torch.load(Path(data.processed_root, "test.pt"))
 
         # load normalization constants
-        data.means = torch.load(Path(data.processed_root, "normalization_means.pt"))
-        data.stds = torch.load(Path(data.processed_root, "normalization_stds.pt"))
-
+        data.x_means = torch.load(Path(data.processed_root, "normalization_means.pt"))
+        data.x_stds = torch.load(Path(data.processed_root, "normalization_stds.pt"))
+        data.y_min, data.y_max = torch.load(Path(data.processed_root, "y_min_max.pt"))
         return data
 
     def _log(self):
