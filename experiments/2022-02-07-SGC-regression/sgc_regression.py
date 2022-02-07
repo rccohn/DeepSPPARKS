@@ -158,9 +158,9 @@ def main():
             model.predict(data_test, mask=data_test.candidate_mask).detach().numpy()
         )
 
-        y_train = data_train.y[data_train.candidate_mask].detach().numpy()
-        y_val = data_val.y[data_val.candidate_mask].detach().numpy()
-        y_test = data_test.y[data_test.candidate_mask].detach().numpy()
+        y_train = data_train.y[data_train.candidate_mask].detach().numpy().squeeze()
+        y_val = data_val.y[data_val.candidate_mask].detach().numpy().squeeze()
+        y_test = data_test.y[data_test.candidate_mask].detach().numpy().squeeze()
 
         fig = regression_results_plot(
             y_train, yp_train, y_val, yp_val, y_test, yp_test, "CGR values"
