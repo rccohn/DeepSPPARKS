@@ -7,6 +7,7 @@ from typing import Union
 from torch_geometric.nn import SGConv
 import mlflow
 from mlflow import log_params, set_tags, log_artifact
+from deepspparks.visualize import regression_results_plot
 
 
 class SGCNet(torch.nn.Module):
@@ -236,10 +237,17 @@ def train_loop(
     print("\nlogging model")
     # logging best model
     model.load_state_dict(best_params)
-    # ypt = model.predict(data_train)[data_train.candidate_mask]  # y pred train
-    # ypv = model.predict(data_valid)[data_valid.candidate_mask]  # y pred validataion
-    # gtt = data_train.y[data_train.candidate_mask]  # ground truth train
-    # gtv = data_valid.y[data_valid.candidate_mask]  # ground truth validation
+    ypt = model.predict(data_train)[data_train.candidate_mask]  # y pred train
+    ypv = model.predict(data_valid)[data_valid.candidate_mask]  # y pred validataion
+    gtt = data_train.y[data_train.candidate_mask]  # ground truth train
+    gtv = data_valid.y[data_valid.candidate_mask]  # ground truth validation
+    yptest = model.predict(data_test)[data_test.candidate_mask]
+    gttest = data_test.y[data_test.candidate_mask]
+
+    figpath = artifact_root / "train_results.html"
+    fig = regression_results_plot(gtt, ypt, gtv, ypv, gttest, yptest, "cgr values")
+    fig.write_html(figpath)
+    log_artifact(str(figpath), "figures")
 
     test_error, test_loss = mean_abs_error_and_mse_loss(
         model, data_test, data_test.candidate_mask
