@@ -206,9 +206,9 @@ def _make_paths(v):
         return
 
 
-def aggregate_targets(data, aggregator):
+def aggregate_targets(data, aggregator, threshold=None):
     """
-    Aggregates targets data.y.
+    Aggregates targets data.y, and optionally apply a threshold for labeling.
 
     Used to aggregate multiple values into a single target. Useful when training
     models to generate single predictions on SPPARKS experiments with repeated
@@ -228,6 +228,12 @@ def aggregate_targets(data, aggregator):
     aggregator: string
         aggregator to apply. If "None", data will not be transformed. Otherwise,
 
+    threshold: int, float, or None
+        if None, then targets are not transformed into class labels.
+        Otherwise, targets are transformed into binary labels.
+        Aggregated values < threshold are assigned class labels of 0,
+        and all other values are assigned class labels of 1.
+
     Returns
     -------
     data_formatted: torch_geometric Data object
@@ -235,17 +241,23 @@ def aggregate_targets(data, aggregator):
 
     """
 
-    # if no aggregator is applied, nothing to do, return original data object
-    if aggregator == "None":
+    # if no aggregator or threshold is applied, nothing to do,
+    # return original data object
+    if aggregator == "None" and threshold is None:
         return data
 
-    # data.y must exist for aggregation
+    # data.y must exist for aggregation/thresholding
     assert hasattr(data, "y"), "data.y does not exist!"
     data_formatted = copy.deepcopy(data)
 
     # map string name to aggregator function
     # eventually, arguments to aggregator functions could be added if needed
-    valid_aggregators = {"mean": lambda x: x.mean(1), "std": lambda x: x.std(1)}
+    valid_aggregators = {
+        "mean": lambda x: x.mean(1),
+        "std": lambda x: x.std(1),
+        "None": lambda x: x,
+    }  # needed when aggregator is "None"
+    # but threshold is not None
 
     # validate choice of aggregator function
     aggregator_fn = valid_aggregators.get(aggregator, None)
@@ -253,6 +265,9 @@ def aggregate_targets(data, aggregator):
         ValueError("aggregator must be one of {}", tuple(valid_aggregators.keys()))
     else:  # apply aggregator
         data_formatted.y = aggregator_fn(data_formatted.y)
+
+        if threshold is not None:
+            data_formatted.y = (data_formatted.y >= threshold).long()
 
     return data_formatted
 
