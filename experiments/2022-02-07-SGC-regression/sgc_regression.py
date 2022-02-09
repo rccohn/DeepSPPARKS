@@ -2,48 +2,10 @@ from data import Dataset
 import mlflow
 from sgc_model import SGCNet, train_loop
 from pathlib import Path
-from deepspparks.utils import load_params
+from deepspparks.utils import load_params, aggregate_targets
 from deepspparks.visualize import regression_results_plot
 import itertools
 from torch.optim import Adam
-from torch_geometric.data import Data
-
-
-def format_targets(
-    data,
-    aggregator,
-):
-    """
-    formats dataset with repeated SPPARKS trials. Converts
-    array of cgr values from repeated trials into a target for
-    a machine learning model.
-
-    Parameters
-    ----------
-    data: Data object
-        torch_geometric Data object
-
-    aggregator: str
-        describes how repeated trials are aggregated into a single target.
-        Currently only supports "mean", but can easily be expanded later
-        supported aggregators are:
-          - "mean": averages values
-
-    Returns
-    -------
-    data_formatted: Data object
-        torch_geometric Data object with updated target values.
-
-    """
-    data_formatted = Data(
-        x=data.x, edge_index=data.edge_index, candidate_mask=data.candidate_mask
-    )
-    if aggregator == "mean":
-        y_aggr = data.y.mean(1)
-
-    data_formatted.y = y_aggr
-
-    return data_formatted
 
 
 def main():
@@ -60,7 +22,7 @@ def main():
 
     with mlflow.start_run(nested=False):
         mlflow.set_tag("mlflow.runName", "cgr-SGC")
-        mlflow.log_param("repeat_aggregator", params["repeat_aggregator"])
+
         mlflow.log_artifact(param_file)
         # initialize and log dataset
         dataset = Dataset(params["mlflow"]["dataset_name"])
@@ -69,9 +31,11 @@ def main():
         print("starting train loop")
         best_val_loss_all = 1e10
 
-        data_train = format_targets(dtrain, params["repeat_aggregator"])
-        data_val = format_targets(dval, params["repeat_aggregator"])
-        data_test = format_targets(dtest, params["repeat_aggregator"])
+        # apply aggregator
+        mlflow.log_param("repeat_aggregator", params["repeat_aggregator"])
+        data_train = aggregate_targets(dtrain, params["repeat_aggregator"])
+        data_val = aggregate_targets(dval, params["repeat_aggregator"])
+        data_test = aggregate_targets(dtest, params["repeat_aggregator"])
 
         for k, lr, decay, in itertools.product(
             params["k"], params["optimizer"]["lr"], params["optimizer"]["decay"]
@@ -133,15 +97,15 @@ def main():
         model.load_state_dict(best_state_all)
         mlflow.pytorch.log_model(model, "best_model")
 
-        data_train = format_targets(
+        data_train = aggregate_targets(
             dtrain,
             params["repeat_aggregator"],
         )
-        data_val = format_targets(
+        data_val = aggregate_targets(
             dval,
             params["repeat_aggregator"],
         )
-        data_test = format_targets(
+        data_test = aggregate_targets(
             dtest,
             params["repeat_aggregator"],
         )

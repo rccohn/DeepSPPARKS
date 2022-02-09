@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import os
 from pathlib import Path
@@ -12,17 +13,13 @@ def batcher(data, batch_size=3, min_size=2):
 
     Useful for dividing sets of graphs into batches.
 
-    Parameters
-    ----------
-    data: list-like
-        list of items to be divided into batches
-    batch_size: int
-        length of each batch (sub-list) in the new list
-    min_size: int
-        If batches cannot be divided evenly (ie batches of 3 from list length 10), specifies the minimum
-        length of each batch (ie the leftover batch.) If the last batch contains fewer than min_size elements,
-        it will be appended to the previous batch. For example, batcher(list(range(5)), batch_size=2, min_size=2)
-        yields [[0, 1], [2, 3, 4]], to prevent the last batch containing only 1 element (4).
+    Parameters ---------- data: list-like list of items to be divided into batches
+    batch_size: int length of each batch (sub-list) in the new list min_size: int If
+    batches cannot be divided evenly (ie batches of 3 from list length 10), specifies
+    the minimum length of each batch (ie the leftover batch.) If the last batch
+    contains fewer than min_size elements, it will be appended to the previous batch.
+    For example, batcher(list(range(5)), batch_size=2, min_size=2) yields [[0, 1],
+    [2, 3, 4]], to prevent the last batch containing only 1 element (4).
 
     Returns
     -------
@@ -101,20 +98,20 @@ def load_params(in_path):
 
     """
     in_path = Path(in_path)
-    with open(in_path, 'r') as f:
+    with open(in_path, "r") as f:
         data = yaml.safe_load(f)
     params = _parse_params(data, None)
 
-    if 'paths' in params.keys():
-        params['paths'] = _str2path(params['paths'])
-        _make_paths(params['paths'])
+    if "paths" in params.keys():
+        params["paths"] = _str2path(params["paths"])
+        _make_paths(params["paths"])
 
-    if 'mlflow' in params.keys():
-        mlf_params = params['mlflow']
-        if 'tracking_uri' in mlf_params.keys():
-            mlflow.set_tracking_uri(mlf_params['tracking_uri'])
-        if 'experiment_name' in mlf_params.keys():
-            mlflow.set_experiment(mlf_params['experiment_name'])
+    if "mlflow" in params.keys():
+        mlf_params = params["mlflow"]
+        if "tracking_uri" in mlf_params.keys():
+            mlflow.set_tracking_uri(mlf_params["tracking_uri"])
+        if "experiment_name" in mlf_params.keys():
+            mlflow.set_experiment(mlf_params["experiment_name"])
 
     return params
 
@@ -141,7 +138,7 @@ def _parse_params(params, sub_dict=None):
         sub_dict = params
 
     # regex for matching environment variables
-    env_var_pattern = re.compile(r'\${?[a-zA-Z_]+[a-zA-z0-9_]*}?')
+    env_var_pattern = re.compile(r"\${?[a-zA-Z_]+[a-zA-z0-9_]*}?")
 
     for k, v in sub_dict.items():
         if type(v) == dict:
@@ -151,9 +148,9 @@ def _parse_params(params, sub_dict=None):
             if len(matches):
                 for m in matches:
                     g = m.group()
-                    new = g.strip('$').strip('{}') # extract varialbe name
+                    new = g.strip("$").strip("{}")  # extract varialbe name
                     v = v.replace(g, os.environ[new])
-            
+
             sub_dict[k] = v
 
         else:
@@ -185,6 +182,7 @@ def _str2path(v):
     elif t == dict:
         return {k: _str2path(x) for k, x in v.items()}
 
+
 def _make_paths(v):
     """
     Helper function to make dirs in params paths.
@@ -206,6 +204,58 @@ def _make_paths(v):
         # recursively make all paths in entries of v
         {_make_paths(vv) for vv in v.values()}
         return
+
+
+def aggregate_targets(data, aggregator):
+    """
+    Aggregates targets data.y.
+
+    Used to aggregate multiple values into a single target. Useful when training
+    models to generate single predictions on SPPARKS experiments with repeated
+    growth simulations for a given initial state.
+    Otherwise, the specified aggregator is applied.
+
+    Supported aggregators are:
+        None: no aggregator is applied ex: [1, 2, 3, 4] -> [1, 2, 3, 4]
+        'mean': average value ex: [1, 2, 3, 4] -> 2.5
+        'std': sample standard deviation ex: [1, 2, 3, 4] -> 1.291
+    Parameters
+    ----------
+    data: torch_geometric Data object
+        Data to aggregate. Aggregator will be applied to data.y
+        Unless aggregator is None, data.y must exist and be a 2d Tensor
+
+    aggregator: string
+        aggregator to apply. If "None", data will not be transformed. Otherwise,
+
+    Returns
+    -------
+    data_formatted: torch_geometric Data object
+        copy of data with aggregated y values in data.y.
+
+    """
+
+    # if no aggregator is applied, nothing to do, return original data object
+    if aggregator == "None":
+        return data
+
+    # data.y must exist for aggregation
+    assert hasattr(data, "y"), "data.y does not exist!"
+    data_formatted = copy.deepcopy(data)
+
+    # map string name to aggregator function
+    # eventually, arguments to aggregator functions could be added if needed
+    valid_aggregators = {"mean": lambda x: x.mean(1), "std": lambda x: x.std(1)}
+
+    # validate choice of aggregator function
+    aggregator_fn = valid_aggregators.get(aggregator, None)
+    if aggregator_fn is None:
+        ValueError("aggregator must be one of {}", tuple(valid_aggregators.keys()))
+    else:  # apply aggregator
+        data_formatted.y = aggregator_fn(data_formatted.y)
+
+    return data_formatted
+
 
 if __name__ == "__main__":
     pass
