@@ -1,0 +1,2 @@
+# requirements for data exploration build
+jupyterlab==3.2.9

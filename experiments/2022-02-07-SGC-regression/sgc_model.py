@@ -310,7 +310,7 @@ def mean_abs_error_and_mse_loss(model, data, mask):
         Returns
         -------
         acc, loss: float (may be 0-dim torch tensor)
-            mean accuracy and nll-loss of predictions
+            mean abs error and mse loss of predictions
     """
     model.train(False)
 

@@ -35,3 +35,10 @@ MLFLOW_BACKEND_URI=postgresql+psycopg2://user:password@127.0.0.1:5432/my_db
 # default artifact root: uri to store artifacts
 MLFLOW_ARTIFACT_ROOT=gs://my-bucket/path/to/artifact/storage
 
+# local directory to mount to data exploration container for jupyter
+# can be anywhere on your machine where you want to store results of data exploration/analysis
+HOST_MOUNT_JUPYTER="/home/USER/Documents/mlflow/Projects"
+# Port on host machine to connect to jupyter container
+JUPYTER_PORT_HOST=8888
+
+

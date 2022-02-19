@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.1.1-base-ubuntu18.04
+FROM nvidia/cuda:11.1.1-base-ubuntu18.04 AS base
 
 # Set the default shell
 SHELL ["/bin/bash", "-c"]
@@ -63,12 +63,35 @@ COPY setup.py .
 
 # currently -e flag is needed to install correctly
 RUN pip install -e .
-
+# build for running worker nodes
+# makes directories for ssh, inputs, datasets, artifacts, etc
+# used to run mlflow experiments
+FROM base AS build1
 # make directories that experiments will use
 RUN mkdir /root/.ssh # for ssh files (mount as read only, only if sftp artifact store used)
 RUN mkdir -p /root/data/datasets  # raw data (mount as read only)
 RUN mkdir /root/data/processed  # processed dat (mount as read-write)
 RUN mkdir /root/inputs  # for params.yaml and other input files
 RUN mkdir /root/artifacts # temp storage for mlflow artifacts
+
+# for data exploration and analysis
+# note that container should be run with --init 
+# to avoid the PID 1 zombie process issue if using jupyter
+FROM base AS build2
+
+# install jupyter
+COPY requirements-dex.txt requirements.txt
+RUN python -m pip install -r requirements.txt
+
+# default settings for jupyter (dark theme, show line numbers, folding, etc)
+COPY user-settings-jupyter /root/.jupyter/lab/user-settings
+
+
+WORKDIR /home/root
+# create empty directory to mount local files
+RUN mkdir /home/root/host-files
+# sample command for starting jupyter
+COPY start_jupyter.sh .
+
 
 

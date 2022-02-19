@@ -4,7 +4,10 @@ from pathlib import Path
 from skimage.morphology import binary_dilation
 
 
-def img_from_output(path, enhance_edges=True, ):
+def img_from_output(
+    path,
+    enhance_edges=True,
+):
     r"""
     Read SPPARKS meso input/output files and build an image where the candidate
     grain is centered in the matrix.
@@ -20,29 +23,28 @@ def img_from_output(path, enhance_edges=True, ):
 
     """
     path = Path(path)  # force path to Path object
-    initfile = path / 'initial.dream3d'
+    initfile = path / "initial.dream3d"
 
+    assert initfile.is_file(), f"{str(initfile.absolute())} not found!"
 
-    assert initfile.is_file(), f'{str(initfile.absolute())} not found!'
+    init = h5py.File(initfile, "r")
+    sv = init["DataContainers"]["SyntheticVolume"]
+    # grain_ids contains n x m array of pixels. Each pixel has integer value
+    # indicating the grain id that it belongs to shifted by 1 so pixel ids start at 0
 
-    init = h5py.File(initfile, 'r')
-    sv = init['DataContainers']['SyntheticVolume']
-    # grain_ids contains n x m array of pixels. Each pixel has integer value indicating the grain id that it belongs to
-    # shifted by 1 so pixel ids start at 0
+    grain_ids = np.asarray(sv["CellData"]["FeatureIds"]) - 1
 
-    grain_ids = np.asarray(sv['CellData']['FeatureIds']) - 1
-
-    # grain_labels contains the class of each grain.
-    # The row index corresponds to the grain in grain_ids (also shifted by 1 for consistency- the first row is zeros
-    # to account for how the first grain id is 1- ie there is no 0 index, so this is removed)
-    # In the original file there are 3 different vectors describing grain mobility:
-    # [0.577, 0.577, 0.577] indicates high-mobility  (red in animation)
-    # [0.894, 0.447, 0] indicates low-mobility grain (blue in animation)
-    # [1, 0, 0] indicates candidate grain (white in animation)
-    # Rather than keeping the entire vector, we can get the label by simply counting the number of non-zero elements
-    #  and subtract 1 for zero-indexing
-    # 2 indicates high mobility, 1 indicates low-mobility, 0 indicates candidate grain
-    grain_labels = np.asarray(sv['CellFeatureData']['AvgQuats'])[1:]
+    # grain_labels contains the class of each grain. The row index corresponds to the
+    # grain in grain_ids (also shifted by 1 for consistency- the first row is zeros
+    # to account for how the first grain id is 1- ie there is no 0 index, so this is
+    # removed) In the original file there are 3 different vectors describing grain
+    # mobility: [0.577, 0.577, 0.577] indicates high-mobility  (red in animation) [
+    # 0.894, 0.447, 0] indicates low-mobility grain (blue in animation) [1, 0,
+    # 0] indicates candidate grain (white in animation) Rather than keeping the
+    # entire vector, we can get the label by simply counting the number of non-zero
+    # elements and subtract 1 for zero-indexing 2 indicates high mobility,
+    # 1 indicates low-mobility, 0 indicates candidate grain
+    grain_labels = np.asarray(sv["CellFeatureData"]["AvgQuats"])[1:]
     grain_labels = (grain_labels > 0).sum(1) - 1
 
     # grain boundaries occur when a neighboring pixel has a different id
@@ -76,29 +78,23 @@ def img_from_output(path, enhance_edges=True, ):
     return gids
 
 
-
-
-
-
-
-
-
 def roll_img(img, i):
     """
     Roll image *img* such that grain *i* is approximately centered.
 
-    This is needed to account for periodic boundary conditions, which may cause an individual grain
-    or grain's neighbor to be wrapped around an edge of the image. Wrapping to the center ensures that small grain
-    neighborhoods will be centered and not cross the edges. Note that this only applies to small grain neighborhoods
-    (ie the initial grain structure.) For grains that dominate the size of the image (ie after abnormal growth occurs,)
-    then a more sophisticated approach (ie using np.where() to get coords and then operating on coords directly) will
-    be needed, but this is likely not needed for determining the graph structure (ie initial grains are small,) and is
-    not compatible with functions that operate on binary masks (ie skimage regionprops.)
+    This is needed to account for periodic boundary conditions, which may cause an
+    individual grain or grain's neighbor to be wrapped around an edge of the image.
+    Wrapping to the center ensures that small grain neighborhoods will be centered
+    and not cross the edges. Note that this only applies to small grain neighborhoods
+    (ie the initial grain structure.) For grains that dominate the size of the image
+    (ie after abnormal growth occurs,) then a more sophisticated approach (ie using
+    np.where() to get coords and then operating on coords directly) will be needed,
+    but this is likely not needed for determining the graph structure (ie initial
+    grains are small,) and is not compatible with functions that operate on binary
+    masks (ie skimage regionprops.)
 
-    Parameters
-    ----------
-    img: ndarray
-        r x c integer numpy array where each element is the grain ID corresponding to the pixel
+    Parameters ---------- img: ndarray r x c integer numpy array where each element
+    is the grain ID corresponding to the pixel
 
     i: int, float
         index of grain in *img* to center
@@ -117,34 +113,50 @@ def roll_img(img, i):
     # needs to be sorted for all coords to appear in order
     rows, cols = (np.sort(x) for x in np.where(img == i))
 
+    # TODO edge case: there exist disconnected grains of size 2 px
+    #        ie rows (374, 376), cols (172, 170)
+    #  this disconnection triggers logic for grain 'wrapping' around, even though it
+    # does not. In fact, this is an edge case of SPPARKS itself where it incorrectly
+    # labels two separated regions as the same grain
+
     # for both row and column indices:
 
     # if mask is only 1 pixel, roll it to center index directly
 
-    # if mask has more than 1 pixels, look for discontinuities (difference in coordinates between consecutive
-    # pixels in mask is larger than some threshold ie 10px)
+    # if mask has more than 1 pixels, look for discontinuities (difference in
+    # coordinates between consecutive pixels in mask is larger than some threshold ie
+    # 10px)
 
-    # if no discontinuity is found (ie mask is not wrapped,) find position of mean coordinate on each axis
-    # and roll so the mask is centered at the center of the image
+    # if no discontinuity is found (ie mask is not wrapped,) find position of mean
+    # coordinate on each axis and roll so the mask is centered at the center of the
+    # image
 
-    # if a discontinuity is found: extend coordinates past the boundary of the image, and then roll
-    # such that the mean position is at the center of the image
+    # if a discontinuity is found: extend coordinates past the boundary of the image,
+    # and then roll such that the mean position is at the center of the image
 
-    if len(rows) == 1:  # mask is only 1 pixel, can't take difference in coords to detect split
-        row_shift = (r - rows[0])
+    if (
+        len(rows) == 1
+    ):  # mask is only 1 pixel, can't take difference in coords to detect split
+        row_shift = r - rows[0]
     else:
         if (rows[1:] - rows[:-1]).max() > 1:  # grain wraps around top to bottom
-            dr = rows[1:]-rows[:-1]
-            rows[:dr.argmax()+1] += rmax
-        row_shift = (r - int(rows.mean()))
+            # verify that row actually spans image
+            # there is an edge case where tiny grains can become
+            # discontinuous despite not being wrapped
+            if rows[0] == 0 and rows[-1] == rmax - 1:
+                dr = rows[1:] - rows[:-1]
+                rows[: dr.argmax() + 1] += rmax
+
+        row_shift = r - int(rows.mean())
 
     if len(cols) == 1:  # mask is only 1 pixel
-        col_shift = (c - cols[0])
+        col_shift = c - cols[0]
     else:
         if (cols[1:] - cols[:-1]).max() > 1:  # grain wraps from right to left
-            dc = cols[1:]-cols[:-1]
-            cols[:dc.argmax()+1] += cmax
-        col_shift = (c - int(cols.mean()))
+            if cols[0] == 0 and cols[-1] == cmax - 1:
+                dc = cols[1:] - cols[:-1]
+                cols[: dc.argmax() + 1] += cmax
+        col_shift = c - int(cols.mean())
 
     img_roll = np.roll(img, (row_shift, col_shift), axis=(0, 1))
 
@@ -152,11 +164,12 @@ def roll_img(img, i):
 
 
 if __name__ == "__main__":
-    x = np.zeros((6,6))
+    x = np.zeros((6, 6))
     x[1:4, 1:4] = 1
     z = x.copy()
+    # roll and unroll image to verify that roll_img correctly centers it
     for rs in range(10):
         for cs in range(10):
             x = np.roll(x, (rs, cs), axis=(0, 1))
             y = roll_img(x, 1)
-            assert np.all(y == z), f'{rs},{cs}'
+            assert np.all(y == z), f"{rs},{cs}"

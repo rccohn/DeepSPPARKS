@@ -1,19 +1,84 @@
 # !/bin/bash
+# ./container: tool for building, removing, and running test instances of worker node container
+# One of the following options must be specified:
+#   -b, --build, build: build image from Dockerfile
+#   -r, --run, run: run container
+#   -d, --delete, delete: delete image
+#
+#   The following options are optional, and alter the behavior of the script:
+#   --dex: indicates that the data exploration version of the container (with jupyter)
+#          should be built/run/removed
+#
+#   -a, --attach, attach: Only used when running container. Attach the container to
+#                         the terminal.
+#   --no-gpu: Only used when running the container. Run with --gpus all to enable
+#             gpu use (must have nvidia container runtime installed for this to work)
 
-# either run ./container build, delete, or run
-CNAME="rccohn/deepspparks-worker:latest"
+# default arguments
+# name of container: fixed
+CNAME="rccohn/deepspparks-worker:"
+# tag: "latest" for worker node version, and "dex" for jupyter data exploration version
+TAG="latest"
+
+# relative path to source cood for deepspparks, needed to build container
 SOURCE_ROOT="../../" # directory contains spparks2graph source code, and setup.py
 
+# whether to attach container after starting with --run
 ATTACH=0
+
+
+TARGET=build1 # target for docker build. build1 is for worker node for running mlflow experiments, and build2 is for running jupyter server for data exploration and analysis
+
+BUILD=0 # if 1, build image
+RUN=0 # if 1, run container
+DELETE=0 # if 1, delete image
+GPU=1 # if 1, use GPU when running
+
+# for handling extra command line args
 EXTRA_ARGS=()
 
+# parse command line arguments
 while [[ $# -gt 0 ]]; 
 do
 	case $1 in
-		-b | --build | build)
-        # build container with default arguments
-        
-        # since docker can't take files from outside of build context, 
+	-a | --attach | attach)
+    	    # attach container after running
+            ATTACH=1
+	    shift
+	    ;;
+	-b | --build | build)
+            # build container with default arguments
+            BUILD=1
+	    shift
+	    ;;
+	-d| --delete | delete)
+	    DELETE=1
+	    shift
+	    ;;
+	--dex)
+	    TARGET="build2"
+	    TAG="dex"
+	    shift # past --targe option
+	    ;;
+	--no-gpu) # run without gpu
+	    GPU=0
+	    shift
+	    ;;
+    	-r | --run | run)
+	    RUN=1
+	    shift
+    	    ;;
+	*)
+    	    EXTRA_ARGS+=("$1")
+    	    shift
+    	    ;;
+    	    esac
+done
+
+# build container
+if [ ${BUILD} -eq 1 ]
+then
+# since docker can't take files from outside of build context, 
         # we have to copy them first.
         # to prevent using an older version of spparks2graph, 
         # the files are deleted after the container is built
@@ -21,42 +86,47 @@ do
 		echo "copying dependencies"
 		cp -r ${SOURCE_ROOT}/deepspparks .
 		cp ${SOURCE_ROOT}/setup.py .
-		docker build -t ${CNAME} .
+		docker build --target ${TARGET} -t ${CNAME}${TAG} .
 		echo "removing temp files"
 		rm -rf deepspparks
 		rm setup.py
-		shift
-		;;
-		-d| --delete | delete)
-		echo "deleting container"
-		docker rmi --force ${CNAME} 
-		shift
-		;;
-		-r | --run | run)
-		echo "running container with GPU (use -R to run without GPU)"
-		CID=$(docker run --rm --gpus=all -itd --name worker-base  ${CNAME})
-		shift
-		;;
-		-R | --Run | Run)
-		echo "running container without GPU (use -r to run with GPU)"
-		CID=$(docker run --rm --gpus=all -itd --name worker-base  ${CNAME})
-		shift
-		;;
-		-a)
-		# attach container after running
-		echo 
-        ATTACH=1
-		shift
-		;;
-		*)
-		EXTRA_ARGS+=("$1")
-		shift
-		;;
-		esac
-done
+fi
 
+echo container: ${CNAME}${TAG}
+
+# run container
+if [ ${RUN} -eq 1 ]
+then
+    # if gpu enabled, specify --gpus all when running docker
+    if [ ${GPU} -eq 1 ]
+    then
+        GPU_ARG="--gpus all"
+    else
+        GPU_ARG=""
+    fi
+    echo "gpu option (blank for none): ${GPU_ARG}"
+    
+    # run detached container
+    # if target == build1, no extra arguments are needed
+    if [ ${TARGET} = "build1" ]
+    then
+	echo "running worker node"
+        CID=$(docker run  -itd --rm ${GPU_ARG} ${CNAME}${TAG} bash )
+    else
+    # if target == build2, then port 8888 needs to be exposed to allow
+    # host to connect to jupyter
+	echo "running data exploration container"
+        CID=$(docker run --init -itd --rm ${GPU_ARG} \
+              -p 8888:8888 \
+              -e CONTAINER_NOTEBOOK_DIR='/' \
+              ${CNAME}${TAG} bash) 
+    fi
+fi 
+
+# if specified, attach container to terminal
 if [ $ATTACH -eq 1 ]
 then
+    echo "attaching container"
     if [ ! -z $CID ]
     then
         docker attach $CID
@@ -65,3 +135,9 @@ then
     fi
 fi
     
+# if specified, delete container image
+if [ ${DELETE} -eq 1 ]
+then
+    echo "deleting container"
+    docker image rm --force ${CNAME}${TAG}
+fi
