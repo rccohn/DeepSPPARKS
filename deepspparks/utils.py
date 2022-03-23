@@ -7,19 +7,25 @@ import yaml
 import mlflow
 
 
+# TODO compute index limits instead of just creating a list of batches
+#      so that data from the original does not need to be copied.
 def batcher(data, batch_size=3, min_size=2):
     r"""
     Split list into batches of approximately equal length.
 
     Useful for dividing sets of graphs into batches.
 
-    Parameters ---------- data: list-like list of items to be divided into batches
-    batch_size: int length of each batch (sub-list) in the new list min_size: int If
-    batches cannot be divided evenly (ie batches of 3 from list length 10), specifies
-    the minimum length of each batch (ie the leftover batch.) If the last batch
-    contains fewer than min_size elements, it will be appended to the previous batch.
-    For example, batcher(list(range(5)), batch_size=2, min_size=2) yields [[0, 1],
-    [2, 3, 4]], to prevent the last batch containing only 1 element (4).
+    Parameters
+    ----------
+    data: list-like list of items to be divided into batches
+    batch_size: int
+        length of each batch (sub-list) in the new list min_size: int If
+        batches cannot be divided evenly (ie batches of 3 from list length 10),
+        specifies the minimum length of each batch (ie the leftover batch.)
+        If the last batch contains fewer than min_size elements, it will be appended
+        to the previous batch. For example, batcher(list(range(5)), batch_size=2,
+        min_size=2) yields [[0, 1], [2, 3, 4]], to prevent the last batch containing
+        only 1 element (4).
 
     Returns
     -------

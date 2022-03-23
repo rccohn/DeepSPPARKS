@@ -4,7 +4,7 @@ import numpy as np
 import networkx as nx
 
 from skimage.morphology import binary_dilation
-from pathlib import Path, PurePath
+from pathlib import Path
 from deepspparks.image import roll_img
 from pycocotools import mask as RLE
 from copy import deepcopy
@@ -15,20 +15,24 @@ class Graph(nx.DiGraph):
     Wraps networkx.DiGraph to add support for metadata and some convenient
     built-in functions.
 
-    Serves as the base data structure for representing an initial state and its growth trajectory.
-    Perfectly preserves initial state and growth trajectory from Spparks experiments (unless
-    it is modified ie to remove intermediate timesteps/grain sizes to save disk space.)
+    Serves as the base data structure for representing an initial state and its
+    growth trajectory. Perfectly preserves initial state and growth trajectory from
+    Spparks experiments (unless it is modified ie to remove intermediate
+    timesteps/grain sizes to save disk space.)
 
     The Graph object should not be used as the input to ML pipelines. Instead,
-    a featurizer and target extractor should be created to extract node (and optional edge/graph)
-    features, and prediction targets.
+    a featurizer and target extractor should be created to extract node (and optional
+    edge/graph) features, and prediction targets.
     """
-    # TODO to further reduce graph size, make node and edge features single list so you don't have to store key
-    #     value pairs for every node and edge
+
+    # TODO to further reduce graph size, make node and edge features single list so
+    #  you don't have to store key value pairs for every node and edge
     def __init__(self):
         super().__init__()
-        self._metadata = {'subgraph_metadata': [],
-                          'subgraph_node_ranges': []}  # info about the original graph itself
+        self._metadata = {
+            "subgraph_metadata": [],
+            "subgraph_node_ranges": [],
+        }  # info about the original graph itself
 
     @property
     def metadata(self):
@@ -36,7 +40,7 @@ class Graph(nx.DiGraph):
 
     @metadata.setter
     def metadata(self, md):
-        assert type(md) == dict, 'metadata must be a dict object!'
+        assert type(md) == dict, "metadata must be a dict object!"
         self._metadata = md
 
     # TODO update code to use edgelist where applicable (instead of explicitly calling
@@ -44,13 +48,9 @@ class Graph(nx.DiGraph):
     @property
     def edgelist(self):
         """
-        Sorted list of edge indices.
-]
-        Returns
-        -------
-        edgelist: list(tuple)
-            sorted list of edges. Each edge is represented as (source, target) where
-            source and target are items in self.nodes.
+        Sorted list of edge indices. ] Returns ------- edgelist: list(tuple) sorted
+        list of edges. Each edge is represented as (source, target) where source and
+        target are items in self.nodes.
         """
         return [self.edges[e] for e in self.eli]
 
@@ -61,23 +61,17 @@ class Graph(nx.DiGraph):
         """
         Sorted list of nodes.
 
-        Returns
-        -------
-        nodelist: list
-            sorted list of node indices [idx1, idx2, ...]. Node objects can be accessed through
-            self.nodes[idx].
+        Returns ------- nodelist: list sorted list of node indices [idx1, idx2,
+        ...]. Node objects can be accessed through self.nodes[idx].
         """
         return [self.nodes[n] for n in self.nli]
 
     @property
     def nli(self):
         """
-        sorted list of node indices
-        Returns
-        -------
-        node_list_indices: list
-            sorted list of nodi indices [idx1, idx2, ...]. Individual node objects can be accessed through
-            self.nodes[idx].
+        sorted list of node indices Returns ------- node_list_indices: list sorted
+        list of nodi indices [idx1, idx2, ...]. Individual node objects can be
+        accessed through self.nodes[idx].
         """
         return sorted(self.nodes)
 
@@ -97,15 +91,12 @@ class Graph(nx.DiGraph):
     @property
     def cidx(self):
         """
-        Candidate idx.
-        Returns
-        -------
-        cidx:list(int)
-            list of node indices corresponding to candidate grains
-            [self.nodelist[i] for i in self.cidx] gives list of all candidate grains in graph
+        Candidate idx. Returns ------- cidx:list(int) list of node indices
+        corresponding to candidate grains [self.nodelist[i] for i in self.cidx] gives
+        list of all candidate grains in graph
         """
         nli = np.array(self.nli)
-        ids = np.array([self.nodes[n]['grain_type'] for n in nli])
+        ids = np.array([self.nodes[n]["grain_type"] for n in nli])
         where = np.where(ids == 0)[0]
 
         return nli[where]
@@ -115,12 +106,10 @@ class Graph(nx.DiGraph):
         Return the metadata dictionary corresponding to node n.
 
 
-        Parameters
-        ----------
-        n: int or None, optional
-            index of node to return corresponding metadata
-            if not specifies, returns metadata for node with smallest index
-            (ie if graph is not result of combining subgraphs, returns the only metadata)
+        Parameters ---------- n: int or None, optional index of node to return
+        corresponding metadata if not specifies, returns metadata for node with
+        smallest index (ie if graph is not result of combining subgraphs, returns the
+        only metadata)
 
 
         Returns
@@ -130,18 +119,19 @@ class Graph(nx.DiGraph):
         """
         #  Since number of nodes is small, O(n) linear search is fine.
         #         Eventually this can be optimized to binary search if needed.
-        if n == None:
+        if n is None:
             n = self.nli[0]
-        nr = self.metadata['subgraph_node_ranges']
+        nr = self.metadata["subgraph_node_ranges"]
 
         i = 0
         while not nr[i] > n:
             i += 1
             if i > len(nr):
-                raise ValueError('node out of range')
-        return self.metadata['subgraph_metadata'][i]
+                raise ValueError("node out of range")
+        return self.metadata["subgraph_metadata"][i]
 
-
+    # TODO add 'zoom' argument to crop image
+    #      to only included nodes
     def to_image(self, color_by_type=False, flip_horizontal=False, center_grain=None):
         """
         # color by type: add edges to grains and color by 'type' instead of id
@@ -153,19 +143,19 @@ class Graph(nx.DiGraph):
         -------
 
         """
-        if len(self.metadata['subgraph_metadata']) > 1:
+        if len(self.metadata["subgraph_metadata"]) > 1:
             # need to handle multiple different microstructures in one graph.
             # return list of images instead of single image? if centering, need
             # to pass list of grain_ids to center
             raise NotImplementedError
 
-        img = np.zeros(self.metadata['subgraph_metadata'][0]['img_size'], np.int16) - 1
+        img = np.zeros(self.metadata["subgraph_metadata"][0]["img_size"], np.int16) - 1
         for i in self.nli:
             n = self.nodes[i]
-            mask = RLE.decode(n['rle']).astype(np.bool)
+            mask = RLE.decode(n["rle"]).astype(np.bool)
             img[mask] = i
 
-        if center_grain != None:
+        if center_grain is not None:
             img = roll_img(img, center_grain)
 
         if color_by_type:
@@ -174,8 +164,10 @@ class Graph(nx.DiGraph):
             cc, rr = np.meshgrid(np.arange(s[1]), np.arange(s[0]))
             # True where grain id of pixel [i,j] != pixel[i+1,j] or pixel[i, j+1]
             # including periodic boundary conditions
-            edge_mask = np.logical_or(img[rr, cc] != img[(rr + 1) % s[0], cc],
-                                      img[rr, cc] != img[rr, (cc + 1) % s[1]])
+            edge_mask = np.logical_or(
+                img[rr, cc] != img[(rr + 1) % s[0], cc],
+                img[rr, cc] != img[rr, (cc + 1) % s[1]],
+            )
             edge_mask = binary_dilation(edge_mask, selem=np.ones((2, 2), np.bool))
 
             new_img = np.zeros((*img.shape, 3), np.uint8)
@@ -184,7 +176,7 @@ class Graph(nx.DiGraph):
 
             # assign color to image
             for n in sorted(self.nodes):
-                new_img[img == n, :] = type_colors[self.nodes[n]['grain_type']]
+                new_img[img == n, :] = type_colors[self.nodes[n]["grain_type"]]
 
             # add edges
             new_img[edge_mask] = (0, 0, 0)
@@ -240,24 +232,26 @@ class Graph(nx.DiGraph):
         # compare graid_ids, mobilities, timesteps, grain_sizes, etc to
         # original hd5 file
 
-        spparks_dict = {'initial.dream3d': {}, 'stats.h5': {}}
+        spparks_dict = {"initial.dream3d": {}, "stats.h5": {}}
 
         # shift to_image() by 1 to get ids from 1-N instead of 0-N-1
-        spparks_dict['initial.dream3d']['grain_ids'] = self.to_image2() + 1
+        spparks_dict["initial.dream3d"]["grain_ids"] = self.to_image2() + 1
 
         # go from integer grain type labels back to the vectors from spparks
-        mob_map = np.stack([self.metadata['grain_types'][f'type_{x}'][0]
-                            for x in range(3)])
-        mobs = mob_map[[n['grain_type'] for n in self.nodelist]]
+        mob_map = np.stack(
+            [self.metadata["grain_types"][f"type_{x}"][0] for x in range(3)]
+        )
+        mobs = mob_map[[n["grain_type"] for n in self.nodelist]]
         mobs = np.pad(mobs, pad_width=((1, 0), (0, 1)), constant_values=0)
-        spparks_dict['initial.dream3d']['grain_labels'] = mobs
+        spparks_dict["initial.dream3d"]["grain_labels"] = mobs
 
-        # stack grain sizes on array of zeros to account for offset (ie grain idx starts at 1)
-        grain_sizes = self.metadata['grain_sizes']
+        # stack grain sizes on array of zeros to account for offset (ie grain idx
+        # starts at 1)
+        grain_sizes = self.metadata["grain_sizes"]
         grain_sizes = np.pad(grain_sizes, pad_width=((0, 0), (1, 0)), constant_values=0)
-        spparks_dict['stats.h5']['grainsize'] = grain_sizes
+        spparks_dict["stats.h5"]["grainsize"] = grain_sizes
 
-        spparks_dict['stats.h5']['time'] = self.metadata['timesteps']
+        spparks_dict["stats.h5"]["time"] = self.metadata["timesteps"]
 
         return spparks_dict
 
@@ -267,34 +261,39 @@ class Graph(nx.DiGraph):
         """
 
         # TODO implement this case if needed
-        gtype = self.metadata.get('gtype', 'single')
-        if gtype != 'single':
-            print('spparks validation only available for single graphs')
+        gtype = self.metadata.get("gtype", "single")
+        if gtype != "single":
+            print("spparks validation only available for single graphs")
             return 0
 
         if root == "":  # default, read from metadata
-            root = self.metadata['path']
+            root = self.metadata["path"]
 
         sd = self.to_spparks_out()
 
         root = Path(root)  # forces root to be path object
-        initfile = root / 'initial.dream3d'
-        statsfile = root / 'stats.h5'
+        initfile = root / "initial.dream3d"
+        statsfile = root / "stats.h5"
 
-        assert initfile.is_file(), f'{str(initfile.absolute())} not found!'
-        assert statsfile.is_file(), f'{str(statsfile.absolute())} not found!'
+        assert initfile.is_file(), f"{str(initfile.absolute())} not found!"
+        assert statsfile.is_file(), f"{str(statsfile.absolute())} not found!"
 
-        init = h5py.File(initfile, 'r')
-        stats = h5py.File(statsfile, 'r')
-        sv = init['DataContainers']['SyntheticVolume']
+        init = h5py.File(initfile, "r")
+        stats = h5py.File(statsfile, "r")
+        sv = init["DataContainers"]["SyntheticVolume"]
 
-        grain_ids = np.asarray(sv['CellData']['FeatureIds'])
-        grain_labels_raw = np.asarray(sv['CellFeatureData']['AvgQuats'])
-        timesteps = np.asarray(stats['time'])
-        grain_sizes = np.asarray(stats['grainsize'])
+        grain_ids = np.asarray(sv["CellData"]["FeatureIds"])
+        grain_labels_raw = np.asarray(sv["CellFeatureData"]["AvgQuats"])
+        timesteps = np.asarray(stats["time"])
+        grain_sizes = np.asarray(stats["grainsize"])
 
-        h5d = {'initial.dream3d': {'grain_ids': grain_ids, 'grain_labels': grain_labels_raw},
-               'stats.h5': {'time': timesteps, 'grainsize': grain_sizes}}
+        h5d = {
+            "initial.dream3d": {
+                "grain_ids": grain_ids,
+                "grain_labels": grain_labels_raw,
+            },
+            "stats.h5": {"time": timesteps, "grainsize": grain_sizes},
+        }
         match = True
         for k, v in h5d.items():
             for kk, vv in v.items():
@@ -307,33 +306,42 @@ class Graph(nx.DiGraph):
     # TODO make this work for multi graph
     def to_dict(self):
         """
-        Returns a json-compatible dictionary of graph nodes, edges, and metadata (ie all information needed to exactly reconstruct the graph exactly with self.from_dict()
+        Returns a json-compatible dictionary of graph nodes, edges, and metadata (ie
+        all information needed to exactly reconstruct the graph exactly with
+        self.from_dict()
 
         Parameters
         -----------
         None
 
-        Returns
-        -----------
-        jd: dict
-            json-compatible dictionary with keys 'nodes', 'edges', 'metadata', and values contain all of the information contained in the graph.
+        Returns ----------- jd: dict json-compatible dictionary with keys 'nodes',
+        'edges', 'metadata', and values contain all of the information contained in
+        the graph.
         """
 
         nodes = {}
-        for n in self.nodes: # don't need ordering here
+        for n in self.nodes:  # don't need ordering here
             node = deepcopy(self.nodes[n])  # don't modify original graph
-            node['rle']['counts'] = node['rle']['counts'].decode('utf-8')  # json can't encode bytes
-            node['grain_size'] = [x.tolist() for x in node['grain_size']]
+            node["rle"]["counts"] = node["rle"]["counts"].decode(
+                "utf-8"
+            )  # json can't encode bytes
+            node["grain_size"] = [x.tolist() for x in node["grain_size"]]
             nodes[str(n)] = node
 
         edges = {str(k): deepcopy(v) for k, v in self.edges.items()}
 
-        metadata = {'subgraph_metadata': [_md2jd(x) for x in self.metadata['subgraph_metadata']],
-                    'subgraph_node_ranges': self.metadata['subgraph_node_ranges']}
+        metadata = {
+            "subgraph_metadata": [
+                _md2jd(x) for x in self.metadata["subgraph_metadata"]
+            ],
+            "subgraph_node_ranges": self.metadata["subgraph_node_ranges"],
+        }
 
-        jd = {'nodes': nodes,
-              'edges': edges,
-              'metadata': metadata, }
+        jd = {
+            "nodes": nodes,
+            "edges": edges,
+            "metadata": metadata,
+        }
         return jd
 
     def to_json(self, path):
@@ -345,7 +353,7 @@ class Graph(nx.DiGraph):
         path: str or Path object
             path to save json file to
         """
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             jd = self.to_dict()
             json.dump(jd, f)
 
@@ -365,20 +373,22 @@ class Graph(nx.DiGraph):
             Graph with data loaded from dict
         """
         G = Graph()
-        for k, v in jd['nodes'].items():
-            v['rle']['counts'] = bytes(v['rle']['counts'], 'utf-8')
-            v['grain_size'] = [np.array(x) for x in v['grain_size']]
+        for k, v in jd["nodes"].items():
+            v["rle"]["counts"] = bytes(v["rle"]["counts"], "utf-8")
+            v["grain_size"] = [np.array(x) for x in v["grain_size"]]
             G.add_node(int(k), **v)
 
-        for k, v in jd['edges'].items():
-            k = [int(x) for x in k.strip('()').split(', ')]
-            #todo remove when no longer needed
-            #v['dr'] = np.asarray(v['dr'])
-            G.add_edge(*k)#, **v)
+        for k, v in jd["edges"].items():
+            k = [int(x) for x in k.strip("()").split(", ")]
+            # todo remove when no longer needed
+            # v['dr'] = np.asarray(v['dr'])
+            G.add_edge(*k)  # , **v)
 
-        md = [_jd2md(x) for x in jd['metadata']['subgraph_metadata']]
-        G.metadata = {'subgraph_metadata': md,
-                      'subgraph_node_ranges': jd['metadata']['subgraph_node_ranges']}
+        md = [_jd2md(x) for x in jd["metadata"]["subgraph_metadata"]]
+        G.metadata = {
+            "subgraph_metadata": md,
+            "subgraph_node_ranges": jd["metadata"]["subgraph_node_ranges"],
+        }
 
         return G
 
@@ -392,33 +402,36 @@ class Graph(nx.DiGraph):
         path: str or Path object
 
         """
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             json_dict = json.load(f)
             # graph is 'new' format
-            if 'subgraph_metadata' in json_dict['metadata'].keys():
+            if "subgraph_metadata" in json_dict["metadata"].keys():
                 g = Graph.from_dict(json_dict)
             # graph was saved from older format
             else:
                 g = load_json_old(json_dict)
         return g
 
-    #  TODO make sure metadata is saved/loaded with self.{to,from}_{json,dict}
-    #       Hard part: do this in a way that doesn't break a combined graph
-    #       Remember to take practical considerations into account
-    #       Shouldn't spend tons of effort making this work for  a combined graph built from combined graph subgraphs
+    # TODO make sure metadata is saved/loaded with self.{to,from}_{json,dict} Hard
+    #  part: do this in a way that doesn't break a combined graph Remember to take
+    #  practical considerations into account Shouldn't spend tons of effort making
+    #  this work for  a combined graph built from combined graph subgraphs
     #
 
-    def get_subgraph(self, center=None, r=3, ):
+    def get_subgraph(
+        self,
+        center=None,
+        r=3,
+    ):
         """
         Returns a graph centered at node *center* with specified radius *r*.
 
-        Subgraph only contains nodes at most *radius* hops away from center-node. Dangling edges
-        (edges to nodes not included in sub-graph) are removed. The metadata of the original graph is preserved.
+        Subgraph only contains nodes at most *radius* hops away from center-node.
+        Dangling edges (edges to nodes not included in sub-graph) are removed.
+        The metadata of the original graph is preserved.
 
-        Parameters
-        ----------
-        center: int, or None
-            index of node to center subgraph on. If None, defaults to the index of the 1st candidate grain in the graph
+        Parameters ---------- center: int, or None index of node to center subgraph
+        on. If None, defaults to the index of the 1st candidate grain in the graph
 
         r: int
             radius- number of hops from center to include in subgraph (default 3)
@@ -430,7 +443,7 @@ class Graph(nx.DiGraph):
             subgraph.
 
         """
-        if center == None:
+        if center is None:
             center = self.cidx[0]
         if r == -1:
             r = len(self.nodes) + 1  # depth can never be higher than number of nodes
@@ -448,10 +461,9 @@ class Graph(nx.DiGraph):
                 # if node has already been visited, skip it
                 # otherwise, add to the queue for breadth-first traversal
                 if n not in sg_nodes.keys():
-                    q.enqueue((n, hops+1))
+                    q.enqueue((n, hops + 1))
 
         sg = Graph()  # create subgraph
-
 
         # start by adding nodes so there are no dangling edges
         for n in sg_nodes.keys():
@@ -468,7 +480,7 @@ class Graph(nx.DiGraph):
 
         nli = sg.nli
         # only select metadata of nodes contained in subgraph
-        ranges = self.metadata['subgraph_node_ranges']
+        ranges = self.metadata["subgraph_node_ranges"]
         min_i = 0
 
         # node ranges: range[i-1] <= node_idx < range[i]
@@ -477,24 +489,23 @@ class Graph(nx.DiGraph):
         max_i = min_i
         while not ranges[max_i] > nli[-1]:
             max_i += 1
-        md = self.metadata['subgraph_metadata'][min_i:max_i+1]
-        nr = self.metadata['subgraph_node_ranges'][min_i:max_i+1]
-        sg.metadata = {'subgraph_metadata': md,
-                       'subgraph_node_ranges': nr}
+        md = self.metadata["subgraph_metadata"][min_i : max_i + 1]
+        nr = self.metadata["subgraph_node_ranges"][min_i : max_i + 1]
+        sg.metadata = {"subgraph_metadata": md, "subgraph_node_ranges": nr}
 
         return sg
 
-    #  TODO this has not been tested on combined graphs created from other combined graphs
-    #       node idx ranges may not work (or may have to be read)
-    #        This is an obscure use case so maybe doesn't need to be handled yet
-    #        If you do, it may be easiest to just change metadata to always have the same format
-    #        (ie always assume combined, repeated graphs) and then it can just be appended
+    # TODO this has not been tested on combined graphs created from other combined
+    #  graphs node idx ranges may not work (or may have to be read) This is an
+    #  obscure use case so maybe doesn't need to be handled yet If you do, it may be
+    #  easiest to just change metadata to always have the same format (ie always
+    #  assume combined, repeated graphs) and then it can just be appended
     def reset_node_idx(self, offset=0, return_max=False):
         """
-        modifies graph IN PLACE
-        resets node indices (on both nodes and edges) to [offset... offset+len(nodes)-1]
-        especially useful for subgraphs which do not have ordered sets of nodes, or for resetting
-        node indices when combining graphs to disjoined sets of graphs
+        modifies graph IN PLACE resets node indices (on both nodes and edges) to [
+        offset... offset+len(nodes)-1] especially useful for subgraphs which do not
+        have ordered sets of nodes, or for resetting node indices when combining
+        graphs to disjoined sets of graphs
 
         Parameters
         ----------
@@ -512,44 +523,44 @@ class Graph(nx.DiGraph):
             Otherwise, there are no returns.
         """
 
-        ## Get sorted node indices and compute mapper from old node indices to new node indices
-        ## since we work with sorted nodes, relative ordering
+        # # Get sorted node indices and compute mapper from old node indices to new
+        # node indices # since we work with sorted nodes, relative ordering
         nli = self.nli
         mapper = {old: new for new, old in enumerate(nli, start=offset)}
 
-        ## remove_node() also removes all associated edges
-        ## thus, we "back-up" the edges to a dict and remove all edges in graph
-        ## before starting
+        # remove_node() also removes all associated edges
+        # thus, we "back-up" the edges to a dict and remove all edges in graph
+        # before starting
         edges = {}
         e_idx = tuple(self.edges)
         for e in e_idx:
             edges[e] = self.edges[e]
             self.remove_edge(*e)
 
-        ## Now that edges are safely removed, we remove the nodes from the graph as well
-        ## and store them for conversion
+        # Now that edges are safely removed, we remove the nodes from the graph as well
+        # and store them for conversion
         nodes = {}
         for n in nli:
             nodes[n] = self.nodes[n]
             self.remove_node(n)
 
-        ## Next, we add back the nodes to the graph
+        # Next, we add back the nodes to the graph
         for n in nli:
             self.add_node(mapper[n], **nodes[n])
 
-        ## Finally, we add back edges
+        # Finally, we add back edges
         for e0, e1 in e_idx:
             self.add_edge(mapper[e0], mapper[e1], **edges[(e0, e1)])
             del edges[(e0, e1)]
 
-        ## update node ranges
+        # update node ranges
 
-        # note- original graphs ordered from 0-n-1
-        # sub-graphs only have nodes from one graph (ie never have more than one metadata)
-        # combined graphs always re-ordered during combination, from 0-n or n+1...m
+        # note- original graphs ordered from 0-n-1 sub-graphs only have nodes from
+        # one graph (ie never have more than one metadata) combined graphs always
+        # re-ordered during combination, from 0-n or n+1...m
 
         # only include subgraphs included in node range
-        ranges = self.metadata['subgraph_node_ranges']
+        ranges = self.metadata["subgraph_node_ranges"]
 
         ranges_new = [-1 for _ in ranges]
         i = 0
@@ -557,10 +568,11 @@ class Graph(nx.DiGraph):
             # go to largest node for single subgraph
             while (i < len(nli)) and (nli[i] < r):
                 i += 1
-            # new range value is 1 greater than largest node index for corresponding subgraph
-            ranges_new[ii] = mapper[nli[i-1]] + 1
+            # new range value is 1 greater than largest node index for corresponding
+            # subgraph
+            ranges_new[ii] = mapper[nli[i - 1]] + 1
 
-        self.metadata['subgraph_node_ranges'] = ranges_new
+        self.metadata["subgraph_node_ranges"] = ranges_new
 
         if return_max:  # return max node value + 1, ie next value that can be added
             return max(mapper.values()) + 1
@@ -582,7 +594,7 @@ class Graph(nx.DiGraph):
             list containing each individual subgraph in the graph.
         """
         nli = self.nli
-        ranges = self.metadata['subgraph_node_ranges']
+        ranges = self.metadata["subgraph_node_ranges"]
         # it's not guaranteed that all node keys from [range[k-1]:range[k]] exist
         # thus we have to find an existing node in the graph
         # to get around this, we find the largest node idx in the subgraph
@@ -604,7 +616,6 @@ class Graph(nx.DiGraph):
             subgraphs.append(sg)
 
         return subgraphs
-
 
 
 class ListNode:
@@ -637,7 +648,7 @@ class LLQueue:
 
     @property
     def empty(self):
-        return self.head == None
+        return self.head is None
 
     def enqueue(self, value):
         node = ListNode(value)
@@ -667,34 +678,37 @@ def img_to_graph(img, grain_labels):
      a simple undirected graph. The graph is described by its adjacency and
      degree matrices.
 
-    Parameters
-    --------------
-    img: ndarray
-        m x n array where each pixel is an integer indicating the grain it belongs to
+    Parameters -------------- img: ndarray m x n array where each pixel is an
+    integer indicating the grain it belongs to
 
-    grain_labels: ndarray
-        n_grain element array where values at index i indicate the class of grain with label i.
-          Values should be 0, 1, or 2 and correspond to the grain's class (candidate, high, low mobility, respectively)
-References
-    NOTE: THESE ARE NOT CURRENTLY USED. TODO UPDATE DOCSTRING. Node/edge/graph features can be updated after graph
-                                                                is created.
-    compute_node_features, compute_edge_features, compute_graph_features: callable or None
-        if None- only the graph topology/connectivity is determined
-        else- functions that take the image, neighbor list, and external features as inputs  # TODO clarify format
+    grain_labels: ndarray n_grain element array where values at index i indicate
+    the class of grain with label i. Values should be 0, 1, or 2 and correspond
+    to the grain's class (candidate, high, low mobility, respectively) References
+    NOTE: THESE ARE NOT CURRENTLY USED. TODO UPDATE DOCSTRING. Node/edge/graph
+    features can be updated after graph is created. compute_node_features,
+
+    compute_edge_features, compute_graph_features: callable or None
+    if None- only the graph topology/connectivity is determined else- functions that
+    take the image, neighbor list, and external features as inputs
+    # TODO clarify format
 
     NOTE: THESE ARE NOT CURRENTLY USED. TODO UPDATE DOCSTRING.
     external_features: dictionary
         contains ## TODO make format consistent for graph features
-        if None- external features are not incorporated in computing node and edge features
+        if None- external features are not incorporated in computing node and
+            edge features
         if array- N_node x f array of features for each node
-        if dictionary- keys are node_idx or tuple(source_node, target_node), value is n-element array of features
+        if dictionary- keys are node_idx or tuple(source_node, target_node),
+            value is n-element array of features
 
 
     Returns
     -------------
     graph- dict
-        results with structure {'attributes': <dict containing graph level features,
-                                'graph': <networkx DiGraph containing graph structure and node/edge attributes>}
+        results with structure:
+            {'attributes': <dict containing graph level features,
+             'graph': <networkx DiGraph containing graph structure
+                      and node/edge attributes>}
 
 
     Examples
@@ -703,7 +717,7 @@ References
     References
     -------------
     Z. Liu, J. Zhou Introduction to Graph Neural Networks
-      (https://www.morganclaypoolpublishers.com/catalog_Orig/samples/9781681737669_sample.pdf)
+    (https://www.morganclaypoolpublishers.com/catalog_Orig/samples/9781681737669_sample.pdf)
 
     """
 
@@ -719,24 +733,27 @@ References
 
         grain_mask = img == idx  # selects single grain
 
-
         # easy way to find neighbors of grain
         # roll image so that grain is roughly centered
         # expand its mask and look for which neighbors it overlaps
         img_roll = roll_img(img, idx)
-        # to find neighbors of grain, apply binary dilation tho the mask and look for overlap
-        # TODO (select smaller window around rolled image, use where to get coords, look for neighbors directly?)
+        # to find neighbors of grain, apply binary dilation tho the mask and look for
+        # overlap TODO (select smaller window around rolled image, use where to get
+        #  coords, look for neighbors directly?)
 
         grain_mask_dilate = binary_dilation(grain_mask, selem=np.ones((3, 3), np.int))
 
-        # TODO find threshold for min number of shared pixels to be considered a neighbor?
-        #      would have to be scaled by perimiter or something
+        # TODO find threshold for min number of shared pixels to be considered a
+        #  neighbor? would have to be scaled by perimiter or something
         neighbors = np.unique(img_roll[grain_mask_dilate])
-        neighbors = neighbors[neighbors != idx]  # a grain cannot be its own neighbor (ie no self loops on graph)
+        neighbors = neighbors[
+            neighbors != idx
+        ]  # a grain cannot be its own neighbor (ie no self loops on graph)
 
         source_idx = np.zeros(neighbors.shape, np.int) + idx
-        edges = np.stack((neighbors, source_idx),
-                         axis=0).T  # format: [[source_idx, neighbor_1_idx], [source_idx, neighbor_2_idx], ...]
+        edges = np.stack(
+            (neighbors, source_idx), axis=0
+        ).T  # format: [[source_idx, neighbor_1_idx], [source_idx, neighbor_2_idx], ...]
 
         # grain
         rle = RLE.encode(np.asfortranarray(grain_mask))
@@ -745,12 +762,12 @@ References
         # for now we initialize empty list
         # then append values that are read later
 
-        node_features = {'grain_type': grain_labels[idx], 'rle': rle, 'grain_size': []}
+        node_features = {"grain_type": grain_labels[idx], "rle": rle, "grain_size": []}
 
         G.add_node(idx, **node_features)
 
         # list of tuples of the format (source_idx, target_idx, {**features})
-        ebunch = [(*e, ) for e in edges]
+        ebunch = [(*e,) for e in edges]
 
         G.add_edges_from(ebunch)
 
@@ -765,9 +782,10 @@ def create_graph(path):
     -----------
     path: string or Path object
         directory containing 2 files:
-            1) initial.dream3d contains pixel map of initial grains (n x m array, each pixel is an
-               integer indicating which grain it belongs to)
-            2) stats.h5: contains arrays of timesteps and grain area (in pixels) of each grain at the time step
+            1) initial.dream3d contains pixel map of initial grains (n x m array, each
+               pixel is an integer indicating which grain it belongs to)
+            2) stats.h5: contains arrays of timesteps and grain area (in pixels) of
+               each grain at the time step
 
     Returns
     -----------
@@ -775,44 +793,53 @@ def create_graph(path):
         graph where nodes are grains, edges are boundaries between grains.
     """
     path = Path(path)  # forces root to be path object
-    initfile = path / 'initial.dream3d'
+    initfile = path / "initial.dream3d"
     if not initfile.is_file():  # for repeat graphs
-        initfile = path / 'spparks_init/initial.dream3d'
+        initfile = path / "spparks_init/initial.dream3d"
 
-    assert initfile.is_file(), f'{str(initfile.absolute())} not found!'
+    assert initfile.is_file(), f"{str(initfile.absolute())} not found!"
 
-    statsfile = path / 'stats.h5'
+    statsfile = path / "stats.h5"
 
     if statsfile.is_file():
-        stats_files = [statsfile]  # put in list to be compatible with repeated graph case
+        stats_files = [
+            statsfile
+        ]  # put in list to be compatible with repeated graph case
 
     else:
-        statsfile = path / 'spparks_results'
-        stats_files = [x / 'stats.h5' for x in sorted(statsfile.glob('*')) if (x/'stats.h5').is_file()]
+        statsfile = path / "spparks_results"
+        stats_files = [
+            x / "stats.h5"
+            for x in sorted(statsfile.glob("*"))
+            if (x / "stats.h5").is_file()
+        ]
 
     assert len(stats_files), "stats.h5 file not found!"
 
-    init = h5py.File(initfile, 'r')
-    sv = init['DataContainers']['SyntheticVolume']
+    init = h5py.File(initfile, "r")
+    sv = init["DataContainers"]["SyntheticVolume"]
 
-    # grain_ids contains n x m array of pixels. Each pixel has integer value indicating the grain id that it belongs to
+    # grain_ids contains n x m array of pixels. Each pixel has integer value indicating
+    # the grain id that it belongs to
     # shifted by 1 so pixel ids start at 0
-    grain_ids = np.asarray(sv['CellData']['FeatureIds']) - 1
-
+    grain_ids = np.asarray(sv["CellData"]["FeatureIds"]) - 1
 
     # grain_labels contains the class of each grain.
-    # The row index corresponds to the grain in grain_ids (also shifted by 1 for consistency- the first row is zeros
-    # to account for how the first grain id is 1- ie there is no 0 index, so this is removed)
+    # The row index corresponds to the grain in grain_ids (also shifted by 1 for
+    # consistency- the first row is zeros to account for how the first grain id is
+    # 1- ie there is no 0 index, so this is removed)
     # In the original file there are 3 different vectors describing grain mobility:
     # [0.577, 0.577, 0.577] indicates high-mobility  (red in animation)
     # [0.894, 0.447, 0] indicates low-mobility grain (blue in animation)
     # [1, 0, 0] indicates candidate grain (white in animation)
-    # Rather than keeping the entire vector, we can get the label by simply counting the number of non-zero elements
+    # Rather than keeping the entire vector, we can get the label by simply counting
+    # the number of non-zero elements
     #  and subtract 1 for zero-indexing
     # 2 indicates high mobility, 1 indicates low-mobility, 0 indicates candidate grain
-    grain_labels_raw = np.asarray(sv['CellFeatureData']['AvgQuats'])[1:]
+    grain_labels_raw = np.asarray(sv["CellFeatureData"]["AvgQuats"])[1:]
     # preserve original mobility labels
-    # reduced representation of mobility- store as single value instead of vector of 3 elements
+    # reduced representation of mobility- store as single value instead of vector of
+    # 3 elements
     grain_labels = (grain_labels_raw > 0).sum(1) - 1
 
     # generate graph from grain connectivity, pixels of grain mask, and mobility labels
@@ -823,54 +850,64 @@ def create_graph(path):
     v1 = 0.4472135901451111
     v2 = 0.5773502588272095
     v3 = 0.8944271802902222
-    grain_description = list(zip(
-        [f'type_{i}' for i in range(3)],
-        [[1., 0., 0.], [v3, v1, 0.], [v2, v2, v2]],
-        ('candidate grain (white)', 'low mobility (blue)', 'high mobility (red)')))
-    grain_types = {x[0]: (x[1:]) for x in grain_description}  # dict makes json saving/loading easier
+    grain_description = list(
+        zip(
+            [f"type_{i}" for i in range(3)],
+            [[1.0, 0.0, 0.0], [v3, v1, 0.0], [v2, v2, v2]],
+            ("candidate grain (white)", "low mobility (blue)", "high mobility (red)"),
+        )
+    )
+    grain_types = {
+        x[0]: (x[1:]) for x in grain_description
+    }  # dict makes json saving/loading easier
 
     # add size trajectories and metadata
-    md = {'img_size': grain_ids.shape,
-                'grain_types': grain_types,
-                'path': [],
-                'timesteps': [],
-                'grain_sizes': []}
+    md = {
+        "img_size": grain_ids.shape,
+        "grain_types": grain_types,
+        "path": [],
+        "timesteps": [],
+        "grain_sizes": [],
+    }
 
     nli = G.nli
     for f in stats_files:
-        stats = h5py.File(f, 'r')
+        stats = h5py.File(f, "r")
         # grain_sizes[t,g] gives size in pixels of grain g at time t
-        grain_sizes = np.asarray(stats['grainsize'])[:, 1:]   # 1 offset since spparks is 1 indexed
-        timesteps = np.asarray(stats['time'])
+        grain_sizes = np.asarray(stats["grainsize"])[
+            :, 1:
+        ]  # 1 offset since spparks is 1 indexed
+        timesteps = np.asarray(stats["time"])
 
         # append the filename, timesteps,
-        md['path'].append(f.absolute().resolve())
-        md['timesteps'].append(timesteps)
-
+        md["path"].append(f.absolute().resolve())
+        md["timesteps"].append(timesteps)
 
         # update node feature with grain_sizes for each trial
         # this is more consistent than keeping it as metadata
         # and avoids issues with re-indexing nodes
         for n in nli:
-            G.nodes[n]['grain_size'].append(grain_sizes[:, n])
+            G.nodes[n]["grain_size"].append(grain_sizes[:, n])
 
     # to accomodate combined graphs, we store metadat for an individual graph in a list
     # we also keep track of the range of nodes assocciated with each metadata entry
-    G.metadata = {'subgraph_metadata': [md],
-                  'subgraph_node_ranges': [len(G.nodes)]}
+    G.metadata = {"subgraph_metadata": [md], "subgraph_node_ranges": [len(G.nodes)]}
     return G
 
-# TODO subgraph_idx: second element for subgraph i == first element for subgraph i+1, only need to store 1d array
+
+# TODO subgraph_idx: second element for subgraph i == first element for subgraph i+1,
+#  only need to store 1d array
 def combine_graphs(subgraphs):
     """
     combines two or more graphs into one disjoined graph
 
     creates graph with the following properties.
-    Each graph has its node indices reset. For example, 2 graphs with nodes [1,2] and [1,2,3] are
-    combined into a graph with indices [0, 1, 2, 3, 4]. Edge indices are updated so they are consistent.
-    No edges exist between separate graphs.
+    Each graph has its node indices reset. For example, 2 graphs with nodes [1,2] and
+    [1,2,3] are combined into a graph with indices [0, 1, 2, 3, 4]. Edge indices are
+    updated so they are consistent. No edges exist between separate graphs.
 
-    Using the above example, subgraph_idx is [(0,1), (2,4)] and subgraph_metadata is [graph_1metadata_dict, graph_2metadata_dict]
+    Using the above example, subgraph_idx is [(0,1), (2,4)] and subgraph_metadata is
+    [graph_1metadata_dict, graph_2metadata_dict]
 
     Parameters:
     ----------
@@ -884,7 +921,7 @@ def combine_graphs(subgraphs):
     """
     g = subgraphs[0].copy()
     offset = g.reset_node_idx(0, True)
-    if len(subgraphs) == 1: # no graphs to combine
+    if len(subgraphs) == 1:  # no graphs to combine
         return g
 
     for subgraph in subgraphs[1:]:
@@ -895,10 +932,11 @@ def combine_graphs(subgraphs):
         for e in sgc.edges:
             g.add_edge(*e, **sgc.edges[e])
 
-        g.metadata['subgraph_metadata'].extend(sgc.metadata['subgraph_metadata'])
-        g.metadata['subgraph_node_ranges'].extend(sgc.metadata['subgraph_node_ranges'])
+        g.metadata["subgraph_metadata"].extend(sgc.metadata["subgraph_metadata"])
+        g.metadata["subgraph_node_ranges"].extend(sgc.metadata["subgraph_node_ranges"])
 
     return g
+
 
 # TODO fix this so it works with new graph structures
 def quickstats(g: Graph) -> dict:
@@ -915,7 +953,8 @@ def quickstats(g: Graph) -> dict:
     fr: float
         number fraction of red grains in the system
     cgr: ndarray
-        n_repeat element array of candidate growth ratio values for each trial in the system
+        n_repeat element array of candidate growth ratio values for each trial in the
+        system
     'size': tuple(int, int)
         system size
     'time': tuple(float, float, int)
@@ -945,48 +984,41 @@ def quickstats(g: Graph) -> dict:
         # for each node, compute stats for each repeat
 
         # 0: candidate, 1: blue (low mobility) 2: red (high mobility)
-        grain_types = np.array([x['grain_type'] for x in sg.nodelist])
+        grain_types = np.array([x["grain_type"] for x in sg.nodelist])
 
         # index of candidate grains (grain_type = 0)
         cidx = sg.cidx
 
         # growth ratio of each trial. Final size/initial size of candidate grain.
 
-
         cgr = []
-        for i in cidx: # for each candidate grain
+        for i in cidx:  # for each candidate grain
             node = sg.nodes[i]
-            gs = node['grain_size']
-            cidx = [x[-1]/x[0] for x in gs] # store cgr for each trial
+            gs = node["grain_size"]
+            cidx = [x[-1] / x[0] for x in gs]  # store cgr for each trial
             cgr.append(cidx)
 
-
-
         # fraction of red grains in initial microstructure
-        fr = (grain_types == 2).sum()/len(grain_types)
+        fr = (grain_types == 2).sum() / len(grain_types)
 
         # only 1 graph in each subgraph
-        md = sg.metadata['subgraph_metadata'][0]
+        md = sg.metadata["subgraph_metadata"][0]
 
         # img_size
-        size = md['img_size']
+        size = md["img_size"]
 
         # timesteps
-        t0 = md['timesteps'][0]
-        for t in md['timesteps'][1:]:
+        t0 = md["timesteps"][0]
+        for t in md["timesteps"][1:]:
             assert t[0] == t0[0]
             assert t[-1] == t0[-1]
             assert len(t) == len(t0)
         time = (t0[0], t0[-1], len(t0))
-        stats = {
-            'fr': fr,
-            'cgr': cgr,
-            'size': size,
-            'time': time
-        }
+        stats = {"fr": fr, "cgr": cgr, "size": size, "time": time}
         results.append(stats)
 
     return results
+
 
 # todo move to image.py? this file is getting kinda long...
 def _add_node_to_img(g, img, src, target):
@@ -994,18 +1026,20 @@ def _add_node_to_img(g, img, src, target):
     img: image to put grains on
     g: graph
     deepspparks, target: nodes in graph
-        deepspparks should already be on graph, target should be a neighbor of deepspparks
+        deepspparks should already be on graph, target should be a neighbor of
+        deepspparks
         (ie the edge (deepspparks, target) should exist)
     """
     # note- need to handle wrapped grains later
-    #xcenter = np.mean(np.where(img == deepspparks), axis=1)  # centroid of source grain
+    # centroid of source grain
+    # xcenter = np.mean(np.where(img == deepspparks), axis=1)
     edge = g.edges[(src, target)]
 
-    bitmask = RLE.decode(g.nodes[target]['rle'])
-    # shift1 = -np.mean(np.where(bitmask), axis=1)  # top left of bitmask to center of grain
+    bitmask = RLE.decode(g.nodes[target]["rle"])
+    # shift1 = -np.mean(np.where(bitmask), axis=1)  #top left of mask to center of grain
     # shift2 = xcenter - (edge['unit_vector'] * edge['length'])
     # shift = shift1 + shift2
-    shift = np.min(np.where(img == src), axis=1) - edge['dr']
+    shift = np.min(np.where(img == src), axis=1) - edge["dr"]
     coords = np.round((np.stack(np.where(bitmask), axis=1) + shift)).astype(np.int).T
     coords = coords % np.reshape(img.shape, (2, 1))
 
@@ -1018,7 +1052,8 @@ def _md2jd(md):
     """
     Dumps metadata to dict that can be saved with json.dump(file).
 
-    Converts a single entry in self.metadata['metadata'].Converts incompatible objects (arrays, Path objects, etc)
+    Converts a single entry in self.metadata['metadata'].Converts incompatible objects
+    (arrays, Path objects, etc)
     to json-friendly objects (lists, strings)
 
     Parameters
@@ -1033,10 +1068,12 @@ def _md2jd(md):
         to disk with json.dump(file)
     """
 
-    jd = {'img_size': md['img_size'],
-                'grain_types': md['grain_types'],
-                'path': [str(x) for x in md['path']],
-                'timesteps': [x.tolist() for x in md['timesteps']]}
+    jd = {
+        "img_size": md["img_size"],
+        "grain_types": md["grain_types"],
+        "path": [str(x) for x in md["path"]],
+        "timesteps": [x.tolist() for x in md["timesteps"]],
+    }
     return jd
 
 
@@ -1057,11 +1094,14 @@ def _jd2md(jd):
         metadata dict containing structures not available in
         json (ie numpy arrays, Path objects, etc)
     """
-    md = {'img_size': jd['img_size'],
-                'grain_types': jd['grain_types'],
-                'path': [Path(x) for x in jd['path']],
-                'timesteps': [np.array(x) for x in jd['timesteps']]}
+    md = {
+        "img_size": jd["img_size"],
+        "grain_types": jd["grain_types"],
+        "path": [Path(x) for x in jd["path"]],
+        "timesteps": [np.array(x) for x in jd["timesteps"]],
+    }
     return md
+
 
 def load_json_old(json_dict):
     """
@@ -1078,59 +1118,69 @@ def load_json_old(json_dict):
         loaded graph object in 'new' format
     """
 
-    md_old = json_dict['metadata']
+    md_old = json_dict["metadata"]
 
-    metadata = {'img_size': md_old['img_size'],
-                'grain_types': md_old['grain_types']}
+    metadata = {"img_size": md_old["img_size"], "grain_types": md_old["grain_types"]}
 
-    path = md_old['path']
+    path = md_old["path"]
 
     if not type(path) == list:  # single graph (no repeats for initial state)
         path = [path]
 
-    metadata['path'] = [Path(p) for p in path]
+    metadata["path"] = [Path(p) for p in path]
 
-    timesteps = md_old['timesteps']
+    timesteps = md_old["timesteps"]
     if not type(timesteps[0]) == list:  # single graph (no repeats)
         timesteps = [timesteps]
 
-    metadata['timesteps'] = [np.array(x) for x in timesteps]
+    metadata["timesteps"] = [np.array(x) for x in timesteps]
 
-    grain_sizes = md_old['grain_sizes']
+    grain_sizes = md_old["grain_sizes"]
     if not type(grain_sizes[0][0]) == list:  # single graph (no repeats)
         grain_sizes = [grain_sizes]
     grain_sizes = [np.array(x) for x in grain_sizes]
     g = Graph()
-    for k,v in json_dict['nodes'].items():
+    for k, v in json_dict["nodes"].items():
         k = int(k)
-        v['rle']['counts'] = bytes(v['rle']['counts'], 'utf-8')
-        node_features = {'grain_type': v['grain_type'],
-                         'rle': v['rle'],
-                         'grain_size': [x[:, k] for x in grain_sizes]}
+        v["rle"]["counts"] = bytes(v["rle"]["counts"], "utf-8")
+        node_features = {
+            "grain_type": v["grain_type"],
+            "rle": v["rle"],
+            "grain_size": [x[:, k] for x in grain_sizes],
+        }
         g.add_node(k, **node_features)
-    for k in json_dict['edges'].keys():
-        e = [int(x) for x in k.strip('()').split(', ')]
+    for k in json_dict["edges"].keys():
+        e = [int(x) for x in k.strip("()").split(", ")]
         g.add_edge(*e)
 
-
-    g.metadata = {'subgraph_metadata': [metadata],
-                  'subgraph_node_ranges': [len(g.nodes)]}
+    g.metadata = {
+        "subgraph_metadata": [metadata],
+        "subgraph_node_ranges": [len(g.nodes)],
+    }
 
     return g
 
+
 if __name__ == "__main__":
-    path = '/home/ryan/Desktop/tempruns/399363-2021-09-20-12-00-04-290587326-candidate-grains-repeat/spparks_init'
-    path = '/home/ryan/Desktop/tempruns/399350-2021-09-17-23-31-08-923308997-candidate-grains-repeat'
+    path = (
+        "/home/ryan/Desktop/tempruns/"
+        "399363-2021-09-20-12-00-04-290587326-candidate-grains-repeat/"
+        "spparks_init"
+    )
+    path = (
+        "/home/ryan/Desktop/tempruns/"
+        "399350-2021-09-17-23-31-08-923308997-candidate-grains-repeat"
+    )
     G = Graph.from_spparks_out(path)
     print(G.__repr__())
-    p1 = '/home/ryan/Desktop/test1.json'
+    p1 = "/home/ryan/Desktop/test1.json"
     G.to_json(p1)
     G2 = Graph.from_json(p1)
-    p2 = '/home/ryan/Desktop/test2.json'
+    p2 = "/home/ryan/Desktop/test2.json"
     G2.to_json(p2)
-    with open(p1, 'r') as f:
+    with open(p1, "r") as f:
         d1 = json.loads(f.read())
-    with open(p2, 'r') as f:
+    with open(p2, "r") as f:
         d2 = json.loads(f.read())
     # files are not exaclty the same because ordering is different
     # however, we can load json files and verify that
@@ -1140,9 +1190,11 @@ if __name__ == "__main__":
     for k in d2.keys():
         assert d2[k] == d1[k]
     print(d1.keys())
-    print(d1['metadata']['gtype'])
-    print(d2['metadata']['gtype'])
-    # path = '/media/ryan/TOSHIBA EXT/Research/datasets/DeepSPPARK/datasets/candidate-grains-small-v1.0.1/train/2020_11_06_12_23_candidate_grains_master-run_533.json'
+    print(d1["metadata"]["gtype"])
+    print(d2["metadata"]["gtype"])
+    # path = '/media/ryan/TOSHIBA EXT/Research/datasets/DeepSPPARK/datasets/' \
+    # 'candidate-grains-small-v1.0.1/train/' \
+    # '2020_11_06_12_23_candidate_grains_master-run_533.json'
     # g = Graph.from_json(path)
     # img = g.to_image()
     # # img = g.to_image()

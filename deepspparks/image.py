@@ -147,7 +147,7 @@ def roll_img(img, i):
                 dr = rows[1:] - rows[:-1]
                 rows[: dr.argmax() + 1] += rmax
 
-        row_shift = r - int(rows.mean())
+        row_shift = r + rmax - int(rows.mean())
 
     if len(cols) == 1:  # mask is only 1 pixel
         col_shift = c - cols[0]
