@@ -1,0 +1,20 @@
+mlflow:
+  project_uri: git@github.com:rccohn/DeepSpparks.git#datasets/node_edge_patch_dataset
+  project_version: main
+  experiment_name: datasets
+  parent_dataset: candidate-grains-toy-lmd-v2.0.0
+  dataset_version: 1 # can be used to differentiate re-processing of same parent
+  # with different parameters
+
+node_patches:
+  # array indices r_min, c_min, r_max, c_max
+  # such that img[r_min:rmax, c_min:cmax] can be used to
+  #select the grain patch from rolled image (grain in center)
+  window: [208, 208, 304, 304]
+
+edge_patches:
+  size: 48 # length of square patch with edge centered in image
+  width: 2 # pixels within a city block distance of <width> away from the closest
+           # pixel in the other grain will be considered as part of the boundary
+
+

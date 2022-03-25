@@ -5,7 +5,7 @@ import networkx as nx
 
 from skimage.morphology import binary_dilation
 from pathlib import Path
-from deepspparks.image import roll_img
+from deepspparks.image import roll_img, extract_node_patch, extract_edge_patch
 from pycocotools import mask as RLE
 from copy import deepcopy
 
@@ -616,6 +616,18 @@ class Graph(nx.DiGraph):
             subgraphs.append(sg)
 
         return subgraphs
+
+    def node_patch(self, *args, **kwargs):
+        """
+        Wraps deepspparks.image.extract_node_patch
+        """
+        return extract_node_patch(self, *args, **kwargs)
+
+    def edge_patch(self, *args, **kwargs):
+        """
+        Wraps deepspparks.image.extract_node_patch
+        """
+        return extract_edge_patch(self, *args, **kwargs)
 
 
 class ListNode:
