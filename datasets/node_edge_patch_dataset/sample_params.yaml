@@ -6,6 +6,9 @@ mlflow:
   dataset_version: 1 # can be used to differentiate re-processing of same parent
   # with different parameters
 
+subgraph_radius: -1 # number of neighborhood shells of candidate grain to include.
+  # -1 includes the whole graph.
+
 node_patches:
   # array indices r_min, c_min, r_max, c_max
   # such that img[r_min:rmax, c_min:cmax] can be used to

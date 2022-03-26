@@ -5,7 +5,6 @@ from multiprocessing import get_context, cpu_count
 import os
 from pathlib import Path
 
-# import numpy as np
 from itertools import repeat
 from shutil import rmtree
 from subprocess import check_output
@@ -57,7 +56,8 @@ def main():
     params = load_params("/root/inputs/params.yaml")
 
     with mlflow.start_run(nested=False):
-
+        # save the param file
+        mlflow.log_artifact("/root/inputs/params.yaml")
         # dataset from which images are generated
         parent_dataset = params["mlflow"]["parent_dataset"]
         # indices r1:r2, c1:c2 from rolled images used to extract node patch images
@@ -77,6 +77,7 @@ def main():
                 "node_patch_window": node_patch_window,
                 "edge_patch_size": edge_patch_size,
                 "edge_width": edge_width,
+                "subgraph_radius": params["subgraph_radius"],
             }
         )
 
@@ -106,10 +107,13 @@ def main():
                 "\n".join(
                     patch_sizes,
                 )
+                + "\n"
             )
 
         subsets = ("train", "val", "test")
         n_files_total = 0
+        total_num_nodes = 0
+        total_num_edges = 0
         for sub in subsets:
             sub_root = parent_dataset_path / sub
             assert sub_root.is_dir(), "dir {} not found!".format(sub_root)
@@ -132,7 +136,7 @@ def main():
 
             for f in files:
                 g = Graph.from_json(f)
-                g = g.get_subgraph(g.cidx[0], r=1)
+                g = g.get_subgraph(g.cidx[0], r=params["subgraph_radius"])
                 # extract node patches
                 nli = g.nli
                 args = [
@@ -199,11 +203,34 @@ def main():
             for patch_type, n in zip(("node", "edge"), (node_patch_n, edge_patch_n)):
                 mlflow.log_metric("num_{}_{}".format(patch_type, sub), n)
 
-        # log average disk space used per graph
-        arg = ["du", "-s", "--bytes", str(output_dataset_path.absolute().resolve())]
-        disk_space = int(check_output(arg).decode("utf-8").split("\t")[0])
-        avg_disk_space_kb = disk_space / (1000 * n_files_total)
-        mlflow.log_metric("average_storage_per_graph-kb", avg_disk_space_kb)
+            total_num_nodes += node_patch_n
+            total_num_edges += edge_patch_n
+
+        # log average disk space used per node and edge patch
+        arg = "du -s --bytes {}/*/node".format(output_dataset_path.absolute().resolve())
+        out = check_output(
+            arg,
+            executable="/bin/bash",
+            shell=True,
+        ).decode("utf-8")
+
+        # values are reported as <num_bytes>\t<path/{train, val, test}>
+        node_bytes = sum([int(x.split("\t")[0]) for x in out.strip("\n").split("\n")])
+        arg = "du -s --bytes {}/*/edge".format(output_dataset_path.absolute().resolve())
+        out = check_output(
+            arg,
+            executable="/bin/bash",
+            shell=True,
+        ).decode("utf-8")
+
+        edge_bytes = sum([int(x.split("\t")[0]) for x in out.strip("\n").split("\n")])
+
+        mlflow.log_metrics(
+            {
+                "average_storage_per_node-b": node_bytes / total_num_nodes,
+                "average_storage_per_edge-b": edge_bytes / total_num_edges,
+            }
+        )
 
 
 if __name__ == "__main__":
