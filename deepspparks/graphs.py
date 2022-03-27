@@ -327,6 +327,7 @@ class Graph(nx.DiGraph):
             )  # json can't encode bytes
             node["grain_size"] = [x.tolist() for x in node["grain_size"]]
             nodes[str(n)] = node
+            node["grain_type"] = int(node["grain_type"])  # np.int64 not serializable
 
         edges = {str(k): deepcopy(v) for k, v in self.edges.items()}
 

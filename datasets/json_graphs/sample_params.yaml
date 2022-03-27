@@ -1,0 +1,34 @@
+mlflow:
+  project_uri: git@github.com:rccohn/DeepSpparks.git#datasets/json_graphs
+  project_version: main
+  experiment_name: datasets
+
+
+parent_dataset: SPPARKS-results # name of parent directory of dataset (included in
+               # docker mount for mlflow raw dataset, see MLProject)
+dataset_name: "new-dataset" # name of new dataset after processing
+
+# can be used to differentiate re-processing of same parent with different parameters
+dataset_version: 1
+
+# random seed for shuffling data, -1 will generate new seed
+random_seed: -1
+
+# validation dataset and test dataset sizes
+# if int, absolute number of files to include
+# if float between 0 and 1, fraction of files to include
+val_size: 0.1
+test_size: 0.1
+# note that training size is inferred from validation and test size
+
+# list of indices of timesteps to keep, or null
+# if null, n_timesteps must be specified
+timesteps: null
+
+# if timesteps specified, n_timesteps is ignored.
+# Specifies the number of intermediate timesteps to keep.
+# -1 keeps all time steps (may result in very large files)
+# 0 only keeps initial and final steps
+# 1 keeps t=0, t=final//2, and t=tfinal (1 intermediate step),
+# etc. Intermediate steps are evenly-spaced with np.linspace
+n_timesteps: 0
