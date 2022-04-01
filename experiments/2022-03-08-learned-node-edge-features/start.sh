@@ -1,2 +1,2 @@
 #!/bin/bash
-python -u autoencode_features.py
+python -u autoencoder_features.py

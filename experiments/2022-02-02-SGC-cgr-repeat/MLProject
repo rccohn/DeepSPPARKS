@@ -13,5 +13,7 @@ docker_env:
 entry_points:
   main:
     command: bash start.sh
+  evaluation:
+    command: python evaluation.py
   debug:
     command: bash

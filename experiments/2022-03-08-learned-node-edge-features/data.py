@@ -1,11 +1,10 @@
-import mlflow
-import numpy as np
 import os
 from pathlib import Path
-from pycocotools.mask import encode, decode
-from deepspparks.graphs import Graph, roll_img
+from pycocotools.mask import decode
 import torch
-from torch.utils.data import Dataset as TorchDataset, DataLoader
+from torch.utils.data import Dataset as TorchDataset
+from patch_compression import recover_node_patch, recover_edge_patch
+from typing import Union, Callable, Optional
 
 
 class DatasetBackend(TorchDataset):
@@ -13,13 +12,34 @@ class DatasetBackend(TorchDataset):
     Allows fast loading of compressed images from disk for very large datasets.
     """
 
-    def __init__(self, root):
+    def __init__(
+        self, root: Union[str, Path], which: str, transform: Callable, size: int
+    ):
         """
         Parameters
         ----------
-        root: string or Path object
-            root directory containing all .pt files in dataset.
+        root: str or Path object
+            root directory containing all text files in a single directory.
+
+        which: str
+            Valid values are "node" or "edge"
+            Determines the method for loading data from disk.
+
+        transform: Callable
+            function to take dictionary representation of patch
+            and convert it into an input for the autoencoder.
+            The function should take a single argument, the dictionary
+            representation of the loaded patch, and return a single
+            torch Tensor in the correct format for the autoencoder as
+            output.
+
+        size: int
+            length of square patch. Not storing the size
+            with the rest of the patch reduces the amount of
+            repeated information stored within each patch, since
+            all patches in the same directory should have the same size.
         """
+
         super(DatasetBackend, self).__init__()
         # maps int 'grain type' to float intensity to use
         # grain type    intensity
@@ -31,20 +51,32 @@ class DatasetBackend(TorchDataset):
         self.root = Path(root)
         n = 0  # length computation
         # do not convert to list and call len() --> memory efficient
-        for _ in self.root.glob("*.pt"):
+        for _ in self.root.glob("*"):
             n += 1
         self.n = n
+        assert self.n, "no files found in {}".format(self.root)
+        if which == "node":
+            self.loader = recover_node_patch
+        elif which == "edge":
+            self.loader = recover_edge_patch
+        else:
+            raise ValueError("parameter 'which' must be 'node' or 'edge'")
+
+        self.transform = transform
+        self.size = size
 
     def __getitem__(self, i):
         """
         Loads item from disk to memory
         """
-        rle = torch.load(self.root / "{:08d}.pt".format(i))
-        # modifying decode to use modified intensity values instead of
-        # 0,1 would require re-writing C code. Instead we load the
-        # binary image and then transform the data afterwards.
-        img = decode(rle) * self.mp[rle["id"]] + 0.2
-        return img
+        # read text file
+        # convert string of data into dictionary
+        # containing patch information
+        # convert dictionary into torch tensor
+        # that can be used as input to the auto-encoder
+
+        with open(self.root / "{:09d}".format(i), "r") as f:
+            return self.transform(self.loader(f.read(), self.size))
 
     def __len__(self):
         """
@@ -57,172 +89,187 @@ class DatasetBackend(TorchDataset):
 
 
 class Dataset:
+    """
+    contains root directory for train, val,
+    and testing subsets
+    """
+
     def __init__(
         self,
-        name,
-        raw_root="/root/data/datasets",
-        processed_root="/root/data/processed",
-        log=True,
+        name: str,
+        which: str,
+        raw_root: Union[str, os.PathLike] = "/root/data/datasets",
+        mapper: Optional[dict] = None,
+        log: bool = True,
     ):
+        """
 
-        if name is None:
-            self.dataset_name = self.raw_root.name  # folder should be name of dataset
-        else:
-            self.dataset_name = name
-        # extracts image of individual grain, with pixel values determined by grain type
-        # centers grain using deepspparks.image.roll_img, and crops to a 96x96 patch
-        # scales all pixels to fit within sigmoid prediction (ie no values of 0 or 1,
-        # which can never be predicted exactly)
-        # background pixels are 0.2, blue grain pixels are 0.4, red grain pixels are
-        # 0.6, and candidate grain pixels are 0.8
-        self.feature_name = "grain_patches_v1"  # description of features
-        # for an auto-encoder model, the
-        # target is to reconstruct the inputs
-        self.target_name = self.feature_name
-
+        If no mapper is specified, the following default one is used:
+        {
+            'background': 0.2, # intensity of background pixels
+            'edge_offset': 0.1, # how much more intense pixels
+                      # on grain boundary are
+            'grain_intensities': (0.8, 0.4, 0.6),
+            # mapper['grain_intensities'][node['grain_type']]
+            # gives the intensity for a given grain
+            # default values give values of 0.8 for the candidate grain,
+            # 0.6 for red grains, and 0.4 for blue grains
+        }
+        Parameters
+        ----------
+        name: str
+            name of dataset
+        which: str
+            valid values are "node" or "edge".
+            Determines which patches will be loaded.
+        raw_root: path-like
+            Path of dataset parent directory (in docker container!)
+        mapper: dict or None
+            contains values for determining the intensity
+            of pixel. If None, the default (described above)
+            is used.
+        """
         self.raw_root = Path(raw_root, name)
-        self.processed_root = Path(
-            processed_root, name, self.feature_name, self.target_name
-        )
+        sizes = parse_patch_sizes(self.raw_root / "patch_sizes.txt")
 
-        self.means = None  # means for normalizing
-        self.stds = None  # stds for normalizing
+        self.which = which
+        self.size = sizes[which]
 
-        # torch datasets for train, validation, test
         self.train = None
         self.val = None
         self.test = None
 
-        # torch data loaders for train, validation, test
-        self.train_loader = None
-        self.val_loader = None
-        self.test_loader = None
-
-        if log:
-            self._log()
-
-    def make_dataloaders(self, **kwargs):
-        """
-        Creates torch dataloaders for training, validation, and test sets.
-        Datasets are created in the Dataset processed root after calling process()
-
-        Parameters
-        ----------
-        kwargs: arguments passed to the torch DataLoader used to load batches of data.
-
-        """
-
-        # idea: verify that number of images in the processed data folder matches the
-        # number of graphs in the raw data folder
-
-        keys = ("train", "val", "test")
-
-        for k in keys:
-            json_graph_dir = self.raw_root / k
-            image_dir = self.processed_root / k
-            count_imgs = 0
-            for _ in image_dir.glob("*.pt"):
-                count_imgs += 1
-            assert count_imgs, "no images found in {}".format(image_dir)
-            count_nodes = 0
-            for f in json_graph_dir.glob("*.json"):
-                g = Graph.from_json(f)
-                count_nodes += len(g.nodes)
-            assert (
-                count_imgs == count_nodes
-            ), "{}: {} graphs found but only {}" "images found".format(
-                k, count_nodes, count_imgs
-            )
-            dataset = DatasetBackend(image_dir)
-            loader = DataLoader(dataset, **kwargs)
-            self.__setattr__(k, dataset)
-            self.__setattr__("{}_loader".format(k), loader)
-        return
-
-    def process(self, force=False, **kwargs):
-        """
-        Parameters
-        ----------
-        force: bool
-            if True, dataset is always processed and over-writes existing processed
-               data, if any. Otherwise, if processed dat is found on disk, it
-               is loaded with make_dataloaders()
-        kwargs:
-            passed to torch dataloaders used to load batches from disk
-        """
-
-        if not force:  # if force == True, skip this step and always process files
-            try:  # load existing data
-                self.make_dataloaders(**kwargs)
-                print("Loaded existing processed data")
-                return
-            except AssertionError:  # if any files are missing, re-process whole dataset
-                print("Processed data not found, processing data now.")
-        if not self.processed_root.exists():
-            os.makedirs(self.processed_root)
-
-        keys = ("train", "val", "test")
-        # saving individual images for every grain in every graph requires too much
-        # memory. Thus, images are RLE compressed, along with the grain 'type'
-
-        # sort files to ensure consistent ordering every time features are computed.
-        for k in keys:
-            subset_raw_root = self.raw_root / k
-            subset_processed_root = self.processed_root / k
-            if not subset_processed_root.exists():
-                os.makedirs(subset_processed_root)
-
-            node_idx = 0
-            print("processing subset {}".format(k))
-            print(
-                subset_raw_root.absolute(),
-                subset_raw_root.exists(),
-                list(subset_raw_root.glob("*")),
-            )
-            for f in sorted(subset_raw_root.glob("*.json")):
-                g = Graph.from_json(f)
-                # use sorted nodelist to ensure constant ordering
-                for n in g.nodelist:
-                    # extract only the rle representation and grain type
-                    # to minimize overhead of loading data during experiments
-                    rle = n["rle"]
-                    img = roll_img(decode(rle), 1)[208:304, 208:304]
-                    rle = encode(np.asfortranarray(img))
-                    rle["id"] = n["grain_type"]
-                    savepath = subset_processed_root / "{:08d}.pt".format(node_idx)
-                    torch.save(rle, savepath)
-                    node_idx += 1
-
-        self.make_dataloaders(**kwargs)
-
-    def _log(self):
-        """
-        Logs relevant tags to mlflow run.
-
-        Note that it is assumed that a run has already been started. If not, mlflow will
-        start a new one with default parameters, which is usually not desirable.
-
-        Returns
-        -------
-            None
-
-        Logs
-        ------
-            dataset name, feature name, target name saved as tags in tracking server
-        """
-        mlflow.set_tags(
-            {
-                "dataset": self.dataset_name,
-                "features": self.feature_name,
-                "targets": self.target_name,
+        if mapper is None:  # use default mapper
+            # see docstring for description of values
+            mapper = {
+                "background": 0.2,
+                "edge_offset": 0.1,
+                "grain_intensities": (0.8, 0.4, 0.6),
             }
-        )
+        self.mapper = mapper
+
+    def process(
+        self,
+    ):
+        """
+        Store training, validation, and subset directories as torch-compatible datasets.
+        """
+        # TODO easy: store dataset size as text file
+        #      more involved: compute and store sha256 checksum of file contents
+        #      so that correctness of dataset can be verified without re-processing
+
+        # need transform for loading patch
+        # todo clean up transform vs loader --> the same information (ie size param)
+        #     is spread across multiple locations, and is a bit messy
+        datasets = {
+            k: DatasetBackend(
+                root=Path(self.raw_root, k, self.which),
+                which=self.which,
+                transform=_get_transform(self.which, self.mapper),
+                size=self.size,
+            )
+            for k in ("train", "val", "test")
+        }
+        self.train = datasets["train"]
+        self.val = datasets["val"]
+        self.test = datasets["test"]
 
 
-if __name__ == "__main__":
-    raw_root = Path("/mlflow-data")
-    processed_root = Path("/scratch/tmp-processed")
-    assert raw_root.is_dir()
-    ds = Dataset("candidate-grains-toy-lmd-v2.0.0", raw_root, processed_root, log=False)
-    ds.process(force=False, **{"batch_size": 3})
-    print(next(iter(ds.val_loader)).shape)
+def _get_transform(which: str, mapper: dict) -> Callable:
+    """ "
+    gets appropriate transform for the given type
+
+    Params
+    ------
+    which: str
+        can be "node" or "edge"
+
+    mapper: dict
+        see Dataset.mapper
+
+    Returns
+    --------
+    transform_fn: Callable
+        appropriate transform to load node or edge patches, respectively.
+    """
+    if which == "node":
+        return _node_transform(mapper)
+    elif which == "edge":
+        return _edge_transform(mapper)
+    else:
+        raise ValueError("parameter 'which' should be 'node' or 'edge'")
+
+
+def _node_transform(
+    mapper: dict,
+) -> Callable:
+    """
+    Transform converts compressed node dictionary into torch tensor.
+
+    Params
+    ------
+    mapper: dict
+        see Dataset.mapper
+    """
+
+    def transform_fn(patch: dict):
+        # load image and set bakcground pixels to fixed value
+        img = torch.zeros(patch["size"], dtype=torch.double) + mapper["background"]
+        # fill in grain pixels with different intensity
+        img[decode(patch).astype(bool)] = mapper["grain_intensities"][patch["type"]]
+        # add dimension for color channel, so img is channels x rows x columns
+        img = img.unsqueeze(0)
+        return img
+
+    return transform_fn
+
+
+def _edge_transform(mapper: dict) -> Callable:
+    """
+    Params
+    ------
+    mapper: dict
+        see Dataset.mapper
+
+    """
+
+    def transform_fn(patch: dict):
+        # create image and fill in background with appropriate value
+        img = torch.zeros(patch["size"], dtype=torch.double) + mapper["background"]
+        # for each of the 2 grains on the grain boundary...
+        for c, t, ec in zip(patch["counts"], patch["types"], patch["edge_coords"]):
+            rle = {"size": patch["size"], "counts": c}
+            # fill in the appropriate pixels for each grain with their respective
+            # intensity value
+            img[decode(rle).astype(bool)] = mapper["grain_intensities"][t]
+            # ec: edge coords: [[row_indices], [col_indices]]
+            # also offset pixels belonging to the grain that are on the grain boundary
+            # (even if 2 grains have same intensity, the boundary will still be
+            # highlighted)
+            img[ec[0], ec[1]] += mapper["edge_offset"]
+        # add dimension for color channel, so img is channels x rows x columns
+        img = img.unsqueeze(0)
+        return img
+
+    return transform_fn
+
+
+def parse_patch_sizes(size_file):
+    """
+    Read file that stores the common patch size
+    information for all patches.
+
+    Since all patches are the same size, storing the size
+    only once reduces redundant information stored in each
+    compressed file.
+    """
+    sizes = {}
+    with open(size_file, "r") as f:
+        data = f.readlines()
+        window = [int(x) for x in data[0].split(": ")[1].split("_")]
+        assert (
+            window[2] - window[0] == window[3] - window[1]
+        ), "node patch should be square"
+        sizes["node"] = window[2] - window[0]
+        sizes["edge"] = int(data[1].split(": ")[1])
+    return sizes

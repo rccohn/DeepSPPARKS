@@ -1,10 +1,12 @@
 import torch
-from torch.nn import MSELoss
+import torch.nn as nn
+import torch.nn.functional as F
 
 # from sklearn.decomposition import IncrementalPCA
 # from pathlib import Path
 # from data import Dataset
 import numpy as np
+import mlflow
 
 
 # fit incremental pca to dataset
@@ -26,7 +28,7 @@ class PCAEncoder:
         Can encode 2d torch tensors into 1d tensors. Can apply transformation
         with a variable number of components, avoiding the need to re-fit the
         sklearn model to reduce the smaller number of components.
-        Can decode 1d compressed tensors back into 2d images
+        Can decode 1d compressed tensors back into 2d images.
     """
 
     def __init__(
@@ -35,6 +37,7 @@ class PCAEncoder:
         channels=None,
         im_width=None,
         im_height=None,
+        n_components=-1,
     ):
         """
         Parameters
@@ -43,14 +46,18 @@ class PCAEncoder:
         model used as backend
         channels, im_width, im_height: int
             image dimensions: number of color channels, image width, and image height
+        n_components: int
+            number of components. -1 includes all components.
+
         """
 
         self.pca_model = pca_model
         self.channels = channels
         self.im_width = im_width
         self.im_height = im_height
+        self.n_components = n_components
 
-    def encode(self, X, n_components=-1):
+    def encode(self, X, n_components=None):
         """
         Encodes tensor of images into representation with reduced dimension.
 
@@ -69,6 +76,9 @@ class PCAEncoder:
         X_encode: tensor
             n_sample x n_component reduced dimensionality
         """
+        if n_components is None:
+            n_components = self.n_components
+
         if n_components == -1:
             n_components = self.pca_model.n_components
 
@@ -131,7 +141,7 @@ class PCAEncoder:
 
         return X_decode
 
-    def predict(self, X, n_components):
+    def predict(self, X, n_components=None):
         """
         Encodes and decodes a collection of images.
         Used for loss computation
@@ -150,7 +160,8 @@ class PCAEncoder:
         n_components: int
             number of components to use during encoding step
         """
-
+        if n_components is None:
+            n_components = self.n_components
         # note that this is not the most computationally
         # efficient, as vectors are cast back and forth
         # between torch and numpy between the encoding and
@@ -162,7 +173,55 @@ class PCAEncoder:
         return y_pred
 
 
-def mse_loss(model, dataloader):
+class ConvAutoEncoderTest(nn.Module):
+    def __init__(self, log=True):
+        super(ConvAutoEncoderTest, self).__init__()
+        self.name = "ConvAutoEncoderTest"
+        # Encoder
+        self.conv1 = nn.Conv2d(1, 4, 3, padding=1)
+        self.conv2 = nn.Conv2d(4, 4, 3, padding=1)
+        self.conv3 = nn.Conv2d(4, 8, 3, padding=1)
+        self.conv4 = nn.Conv2d(8, 8, 3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+
+        # Decoder
+        self.t_conv1 = nn.ConvTranspose2d(8, 4, 2, stride=2)
+        self.t_conv2 = nn.ConvTranspose2d(4, 1, 2, stride=2)
+
+        # ensure all weights are double, avoiding type errors during training
+        self.double()
+
+        if log:
+            self._log()
+
+    def _log(self):
+        mlflow.set_tag("model", self.name)
+
+    def encode(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = self.pool(x)
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = self.pool(x)
+        return x
+
+    def decode(self, x):
+        x = F.relu(self.t_conv1(x))
+        x = torch.sigmoid(self.t_conv2(x))
+        return x
+
+    def forward(self, x):
+        x = self.encode(x)
+        x = self.decode(x)
+        return x
+
+    def predict(self, x):
+        """needed for functions that require predict() method"""
+        return self(x)
+
+
+def batch_mse_loss(model, dataloader):
     """
     Compute mse loss for a given dataset.
 
@@ -170,18 +229,42 @@ def mse_loss(model, dataloader):
     ----------
     model: object with predict() method
     """
-
+    # efficient running mean loss does not rely on large sums
+    # derived from mu[j]-mu[i] = (sum[x_i]/ + sum[xj])/(n+m) - (sum[xi]/n)
+    # set mu[j]-mu[i] = delta, solve for delta, then mu[j] = mu[i] + delta
     mean_loss = 0.0
-    samples = 0.0
-
-    # efficient running mean does not rely on total sum / n
-    # making it more accurace for larger datasets
+    total_samples = 0
+    loss_fn = nn.MSELoss(reduction="sum")
     for batch in dataloader:
         yp = model.predict(batch)
-        loss = MSELoss(batch, yp)
-        n = len(batch)
+        # without detaching, gradients accumulate and memory blows up very
+        # quickly. This is a very subtle issue but will cause massive problem.
+        loss = float(loss_fn(batch, yp).detach().cpu())
+        #
+        m = len(batch)
+        mean_loss += (loss - (m * mean_loss)) / (total_samples + m)
+        total_samples += m
 
-        mean_loss = (samples / samples + n) * mean_loss + loss / (samples + n)
-        samples += n
-
+    # average loss over number of pixels
+    mean_loss /= np.prod(batch.shape[1:])
     return mean_loss
+
+
+def get_autoencoder(model_name: str) -> torch.nn.Module:
+    """
+    Selects model architecture to use for autoencoder experiments.
+    New architectures can be added as needed.
+
+    Parameters
+    ----------
+    model_name: str
+        name of model architecture to use.
+
+    Returns
+    ---------
+    model_class: torch.nn.Module
+        class of model. model(*args, **kwargs) should build the model
+        with appropriate configurations.
+    """
+    models = {"test": ConvAutoEncoderTest}
+    return models[model_name]

@@ -87,7 +87,7 @@ def main():
             edge_patch_size,
             params["mlflow"]["dataset_version"],
         )
-
+        mlflow.set_tag("dataset", output_dataset_name)
         parent_dataset_path = Path("/root", "data", "datasets", parent_dataset)
         output_dataset_path = Path("/root", "data", "processed", output_dataset_name)
 

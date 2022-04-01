@@ -66,6 +66,11 @@ RUN pip install -e .
 # build for running worker nodes
 # makes directories for ssh, inputs, datasets, artifacts, etc
 # used to run mlflow experiments
+
+# upgrade mlflow --> eventually this should be incorporated into env file
+# but this would require an entire rebuild. This is much faster for machines
+# that already have previous container built.
+
 FROM base AS build1
 # make directories that experiments will use
 RUN mkdir /root/.ssh # for ssh files (mount as read only, only if sftp artifact store used)

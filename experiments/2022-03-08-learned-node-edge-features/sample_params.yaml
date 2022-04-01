@@ -1,0 +1,35 @@
+mlflow: # relevant mlflow parameters
+  # path to this project's directory
+  project_uri: git@github.com:rccohn/DeepSpparks.git#experiments/2022-03-08-learned-node-edge-features
+  project_version: .file
+  experiment_name: TEST # tracking experiment name
+  dataset_name: patch_dataset_toy_v1  # path relative to dataset root
+
+which:
+  patches: node # can be "node" or "edge"
+  model: pca_baseline # "pca" or "autoencoder"
+
+dataloader:
+  batch_size: 400 # for pca, batch size must be at least size n_components
+  num_workers: 2
+
+# indices of sample images to save images of predictions for
+sample_results:
+  train: [0,10,32]
+  val: [11, 17, 42]
+
+# pca settings are only used if params["which"]["model] == "pca"
+pca:
+  n_components: 200  # maximum number of components to include
+
+# autoencoder, optimizer, and other training params are only used if params["which"]["model"] == "autoencoder"
+autoencoder:
+  architecture: test # can be one of ["test"]
+
+training:
+  max_epoch: 3
+  checkpoint_epoch: 1
+
+optimizer:
+  lr: 0.001  # optimizer learning rate
+  decay: 0.0005  # Adam weight decay

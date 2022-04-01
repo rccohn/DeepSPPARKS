@@ -79,7 +79,11 @@ def main():
             params["dataset_name"], params["dataset_version"]
         )
         mlflow.set_tags(
-            {"mlflow.runName": output_dataset_name, "source": parent_dataset}
+            {
+                "mlflow.runName": "json graphs",
+                "source": parent_dataset,
+                "dataset": output_dataset_name,
+            }
         )
 
         # get absolute number of datapoints in each split,
