@@ -193,7 +193,6 @@ def main():
                         )
                     )
                 ]
-
                 with get_context("fork").Pool(processes=cpu_count()) as pool:
                     pool.map(save_edge_patch, args)
 

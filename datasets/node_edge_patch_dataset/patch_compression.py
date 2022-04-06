@@ -49,6 +49,7 @@ def compress_edge_patch(patch: dict) -> str:
     # getting rid of trailing 0)
     # the firt half of the sequence is row coordinates, and
     # the second half of the sequence is col coordinates
+
     patch_compress.append(
         "".join(["{:02d}".format(y) for z in patch["edge_coords"][0] for y in z])
     )
