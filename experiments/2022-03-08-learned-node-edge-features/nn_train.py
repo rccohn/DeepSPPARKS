@@ -36,6 +36,9 @@ def train_loop(
     """
     todo docstring
     """
+    # move model to same device that data will be loaded to
+    model = model.to(data.device)
+
     # create loaders for training and validation set, and optimizer for training model
     train_loader = DataLoader(
         data.train,
@@ -66,8 +69,8 @@ def train_loop(
     )
 
     # get loss values for initial random weights for prettier loss vs epoch graph
-    tl = batch_mse_loss(model, train_loader)
-    vl = batch_mse_loss(model, val_loader)
+    tl = batch_mse_loss(model, train_loader, data.device)
+    vl = batch_mse_loss(model, val_loader, data.device)
     mlflow.log_metrics({"fit_train_loss": tl, "fit_val_loss": vl}, step=0)
 
     # during training, track the losses at each checkpoint so that the best can be
@@ -75,6 +78,7 @@ def train_loop(
     best_train_loss = tl
     best_val_loss = vl
     best_epoch = 0
+    best_params = model.state_dict()
 
     # training params
     max_epoch = params["training"]["max_epoch"]
@@ -88,11 +92,12 @@ def train_loop(
     for train_epoch in t:  # continue until model trained for max epochs
         for _ in range(checkpoint_epoch):  # train for n epochs before checkpointing
             for batch in train_loader:  # each epoch, train on all batches in loader
+                batch = batch.to(data.device)
                 train_step(model, batch, optimizer)
 
         # checkpoint: save model weighs, train loss, and val loss
-        tl = batch_mse_loss(model, train_loader)
-        vl = batch_mse_loss(model, val_loader)
+        tl = batch_mse_loss(model, train_loader, data.device)
+        vl = batch_mse_loss(model, val_loader, data.device)
         savepath = Path(
             artifact_root, "model_state_dict_checkpoint_{:03d}".format(train_epoch)
         )
@@ -122,7 +127,7 @@ def train_loop(
         num_workers=params["dataloader"]["num_workers"],
         drop_last=False,
     )
-    test_loss = batch_mse_loss(model, test_loader)
+    test_loss = batch_mse_loss(model, test_loader, data.device)
 
     # save to tracking database
     best_metrics = {

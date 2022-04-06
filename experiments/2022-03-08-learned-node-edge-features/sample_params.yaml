@@ -7,11 +7,12 @@ mlflow: # relevant mlflow parameters
 
 which:
   patches: node # can be "node" or "edge"
-  model: pca_baseline # "pca" or "autoencoder"
+  model: autoencoder # "pca" or "autoencoder"
 
 dataloader:
-  batch_size: 400 # for pca, batch size must be at least size n_components
-  num_workers: 2
+  batch_size: 30 # for pca, batch size must be at least size n_components. for autoencoder, batch should probably be
+                 # smaller
+  num_workers: 4 # number of subprocesses to use for loading data in parallel
 
 # indices of sample images to save images of predictions for
 sample_results:
@@ -24,7 +25,7 @@ pca:
 
 # autoencoder, optimizer, and other training params are only used if params["which"]["model"] == "autoencoder"
 autoencoder:
-  architecture: test # can be one of ["test"]
+  architecture: ConvAutoEncoderEdgeV1  # can be one of ["test", ConvAutoEncoderEdgeV1]
 
 training:
   max_epoch: 3

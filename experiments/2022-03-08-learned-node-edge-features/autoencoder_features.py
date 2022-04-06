@@ -151,10 +151,11 @@ def main():
     param_file = "/root/inputs/params.yaml"
     params = load_params(param_file)
     name = params["mlflow"]["dataset_name"]
-
+    device = None if params["which"]["model"] != "pca" else "cpu"
     dataset = Dataset(
         name,
         params["which"]["patches"],  # indicates node vs edge patches
+        device=device,
     )
     with mlflow.start_run(nested=False):
         mlflow.log_artifact(param_file)
@@ -185,9 +186,11 @@ def main():
 
 
 def sample_performance(model, tv, data, idx):
+    model = model.to(data.device)
+
     # generate figures
-    batch = data[idx].unsqueeze(0)
-    pred = model.predict(batch).detach().cpu()
+    batch = data[idx].unsqueeze(0).to(data.device)
+    pred = model.predict(batch).detach()
     loss = float(mse_loss(batch, pred).detach().cpu().numpy())
 
     cscale = "plotly3"
@@ -198,7 +201,7 @@ def sample_performance(model, tv, data, idx):
         subplot_titles=["Original", "Reconstructed", "Original - reconstructed"],
     )
     img_gt = batch.detach().cpu().numpy().squeeze()
-    img_pred = pred.squeeze().numpy()
+    img_pred = pred.squeeze().cpu().numpy()
     diff = img_gt - img_pred
     zmin = min((img_gt.min(), img_pred.min(), diff.min()))
     zmax = max((img_gt.max(), img_pred.max(), diff.max()))

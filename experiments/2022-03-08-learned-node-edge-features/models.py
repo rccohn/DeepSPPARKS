@@ -172,11 +172,59 @@ class PCAEncoder:
         y_pred = self.decode(X_enc)
         return y_pred
 
+    def to(self, device):
+        """
+        Placeholder for torch.Module models that can be moved to cpu/gpu with
+        model.to(device). Allows common functions to be used for both models
+        """
+        # remove pep 8 linter warnings about unused variable "device"
+        assert 1 < 2 or device
+        return self
 
-class ConvAutoEncoderTest(nn.Module):
+
+class ConvAutoEncoderBase(nn.Module):
+    # template for autoencoder models, to reduce amount of repeated code
+    # requires encode and decode methods
+    def __init__(self, name, log=True):
+        super(ConvAutoEncoderBase, self).__init__()
+        self.name = name
+
+        if log:
+            # log model properties to mlflow tracking server, allows different
+            # model versions to be distinguished
+            self._log()
+
+    def _log(self):
+        # can be over-ridden on subclasses to log more parameters if needed
+        mlflow.set_tag("model_name", self.name)
+
+    def encode(self, x):
+        # needs to be implemented by subclass
+        raise NotImplementedError
+
+    def decode(self, x):
+        # needs to be implemented by subclass
+        raise NotImplementedError
+
+    def predict(self, x):
+        # compress and recover image
+        # needed because some evaluation functions
+        # require a predict() method
+        return self(x)
+
+    def forward(self, x):
+        # compress and recover image
+        # loss will be distance between original and recovered image
+        x = self.encode(x)
+        x = self.decode(x)
+        return x
+
+
+class ConvAutoEncoderTest(ConvAutoEncoderBase):
     def __init__(self, log=True):
-        super(ConvAutoEncoderTest, self).__init__()
-        self.name = "ConvAutoEncoderTest"
+        name = "ConvAutoEncoderTest"
+        super(ConvAutoEncoderTest, self).__init__(name=name)
+
         # Encoder
         self.conv1 = nn.Conv2d(1, 4, 3, padding=1)
         self.conv2 = nn.Conv2d(4, 4, 3, padding=1)
@@ -190,12 +238,6 @@ class ConvAutoEncoderTest(nn.Module):
 
         # ensure all weights are double, avoiding type errors during training
         self.double()
-
-        if log:
-            self._log()
-
-    def _log(self):
-        mlflow.set_tag("model", self.name)
 
     def encode(self, x):
         x = F.relu(self.conv1(x))
@@ -211,31 +253,141 @@ class ConvAutoEncoderTest(nn.Module):
         x = torch.sigmoid(self.t_conv2(x))
         return x
 
-    def forward(self, x):
-        x = self.encode(x)
-        x = self.decode(x)
+
+# idea taken from torchvision/vgg module
+# instead of manually entering each layer,
+# generate layers from config list
+def make_layers_feature(cfg, in_channels=1, batch_norm=False):
+    layers = []
+    for c in cfg:
+        if c == "p":  # pool
+            layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+        else:  # conv layer
+            layers += [nn.Conv2d(in_channels, c, kernel_size=3, padding=1)]
+            if batch_norm:
+                layers += [nn.BatchNorm2d(c)]
+            layers += [nn.ReLU(inplace=True)]
+            in_channels = c
+
+    return nn.Sequential(*layers).double()
+
+
+def make_layers_dense(cfg, in_features, batch_norm=False):
+    layers = []
+    for c in cfg:
+        layers += [
+            nn.Linear(in_features, c, bias=True),
+        ]
+        if batch_norm:
+            layers += [nn.BatchNorm1d(c)]
+        layers += [nn.ReLU(inplace=True)]
+
+    return nn.Sequential(*layers).double()
+
+
+def make_layers_decoder(cfg, in_channels, batch_norm=False):
+    layers = []
+    for c in cfg:
+        if c == "u":  # up sample
+            layers += [nn.ConvTranspose2d(in_channels, in_channels // 2, 2, stride=2)]
+            in_channels = in_channels // 2
+        else:
+            layers += [nn.Conv2d(in_channels, c, kernel_size=3, padding=1)]
+            in_channels = c
+        if batch_norm:
+            layers += [nn.BatchNorm2d()]
+        layers += [nn.ReLU(inplace=True)]
+
+    return nn.Sequential(*layers).double()
+
+
+class ConvAutoEncoderEdgeV1(ConvAutoEncoderBase):
+    # for edge patches
+    def __init__(
+        self,
+    ):
+        # input shape: (row, col)
+        name = "ConvAutoEncoderV1"
+        super(ConvAutoEncoderEdgeV1, self).__init__(name=name)
+        # TODO look at max vs avg pool
+        # cfg 1 probably only useful for edge encoder, node encoder likely needs
+        # 1 more pooling + 256 channel features
+        # for feature map
+        cfg1_f = [16, 16, "p", 32, 32, "p", 64, 64, 64, "p", 128, 128, 128, "p"]
+        # linear layers
+        # encode to bottleneck
+        cfg1_l_a = [9 * 128, 3 * 128]
+        # decode
+        cfg1_l_b = [9 * 128]
+        # decoder
+        cfg1_d = [
+            "u",
+            128,
+            128,
+            128,
+            "u",
+            64,
+            64,
+            64,
+            "u",
+            32,
+            32,
+            "u",
+            16,
+            16,
+            1,
+            1,
+            1,
+        ]
+        input_shape = (48, 48)
+        self.input_shape = input_shape
+        self.n = input_shape[0] // (2**4) * input_shape[1] // (2**4) * 128
+        self.double()
+
+        self.feat = make_layers_feature(cfg1_f)
+
+        self.l1 = make_layers_dense(cfg1_l_a, self.n)
+        self.l2 = make_layers_dense(cfg1_l_b, 3 * 128)
+        self.decoder = make_layers_decoder(cfg1_d, 128)
+
+    def encode(self, x):
+        x = self.feat(x)
+        x = torch.flatten(x, 1)
+        x = self.l1(x)
         return x
 
-    def predict(self, x):
-        """needed for functions that require predict() method"""
-        return self(x)
+    def decode(self, x):
+        x = self.l2(x)
+        x = x.reshape(
+            x.shape[0],
+            128,
+            self.input_shape[0] // 2**4,
+            self.input_shape[1] // 2**4,
+        )
+        x = torch.sigmoid(self.decoder(x))
+
+        return x
 
 
-def batch_mse_loss(model, dataloader):
+def batch_mse_loss(model, dataloader, device="cpu"):
     """
     Compute mse loss for a given dataset.
 
     Parameters
     ----------
     model: object with predict() method
+    dataloader: loads data
+    device: device to move model and data to
     """
     # efficient running mean loss does not rely on large sums
     # derived from mu[j]-mu[i] = (sum[x_i]/ + sum[xj])/(n+m) - (sum[xi]/n)
     # set mu[j]-mu[i] = delta, solve for delta, then mu[j] = mu[i] + delta
+    model = model.to(device)
     mean_loss = 0.0
     total_samples = 0
     loss_fn = nn.MSELoss(reduction="sum")
     for batch in dataloader:
+        batch = batch.to(device)
         yp = model.predict(batch)
         # without detaching, gradients accumulate and memory blows up very
         # quickly. This is a very subtle issue but will cause massive problem.
@@ -266,5 +418,20 @@ def get_autoencoder(model_name: str) -> torch.nn.Module:
         class of model. model(*args, **kwargs) should build the model
         with appropriate configurations.
     """
-    models = {"test": ConvAutoEncoderTest}
+    models = {
+        "test": ConvAutoEncoderTest,
+        "ConvAutoEncoderEdgeV1": ConvAutoEncoderEdgeV1,
+    }
     return models[model_name]
+
+
+def main():
+    net = ConvAutoEncoderEdgeV1()
+    x = torch.ones((3, 1, 48, 48), dtype=torch.double)
+    test = net(x).shape == x.shape
+    print(test)
+    assert test
+
+
+if __name__ == "__main__":
+    main()

@@ -13,7 +13,12 @@ class DatasetBackend(TorchDataset):
     """
 
     def __init__(
-        self, root: Union[str, Path], which: str, transform: Callable, size: int
+        self,
+        root: Union[str, Path],
+        which: str,
+        transform: Callable,
+        size: int,
+        device: str,
     ):
         """
         Parameters
@@ -38,6 +43,11 @@ class DatasetBackend(TorchDataset):
             with the rest of the patch reduces the amount of
             repeated information stored within each patch, since
             all patches in the same directory should have the same size.
+
+        device: str
+            determines where data is loaded to. Options are:
+            "cpu", "cuda", or None.
+
         """
 
         super(DatasetBackend, self).__init__()
@@ -65,6 +75,8 @@ class DatasetBackend(TorchDataset):
         self.transform = transform
         self.size = size
 
+        self.device = device
+
     def __getitem__(self, i):
         """
         Loads item from disk to memory
@@ -76,7 +88,10 @@ class DatasetBackend(TorchDataset):
         # that can be used as input to the auto-encoder
 
         with open(self.root / "{:09d}".format(i), "r") as f:
-            return self.transform(self.loader(f.read(), self.size))
+            data = self.loader(f.read(), self.size)
+        data = self.transform(data)
+        # data = data.to(self.device) # cuda doesn't work with multiprocessing fork
+        return data
 
     def __len__(self):
         """
@@ -100,6 +115,7 @@ class Dataset:
         which: str,
         raw_root: Union[str, os.PathLike] = "/root/data/datasets",
         mapper: Optional[dict] = None,
+        device: Optional[str] = None,
         log: bool = True,
     ):
         """
@@ -128,9 +144,18 @@ class Dataset:
             contains values for determining the intensity
             of pixel. If None, the default (described above)
             is used.
+        device: str or None
+            determines where data is loaded to. Options are:
+            "cpu", "cuda", or None. If None, device will be set to "cuda"
+            if a compatible gpu is found, or cpu otherwise.
         """
         self.raw_root = Path(raw_root, name)
         sizes = parse_patch_sizes(self.raw_root / "patch_sizes.txt")
+
+        if device is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
 
         self.which = which
         self.size = sizes[which]
@@ -167,6 +192,7 @@ class Dataset:
                 which=self.which,
                 transform=_get_transform(self.which, self.mapper),
                 size=self.size,
+                device=self.device,
             )
             for k in ("train", "val", "test")
         }
