@@ -180,9 +180,9 @@ def main():
         else:
             model = autoencoder_train_and_evaluate(params, dataset)
 
-            for tv, data in zip(("train", "val"), (dataset.train, dataset.val)):
-                for idx in params["sample_results"][tv]:
-                    sample_performance(model, tv, data, idx)
+        for tv, data in zip(("train", "val"), (dataset.train, dataset.val)):
+            for idx in params["sample_results"][tv]:
+                sample_performance(model, tv, data, idx)
 
 
 def sample_performance(model, tv, data, idx):
