@@ -15,6 +15,12 @@ def main():
     param_file = "/root/inputs/params.yaml"
     print("parsing params")
     params = load_params(param_file)  # parse experiment parameters
+    if params.get("entry", "") == "eval":  # run evaluation instead of training
+        import evaluation
+
+        evaluation.main()
+        raise SystemExit
+
     artifact = Path(
         "/", "root", "artifacts"
     )  # path to save artifacts before logging to mlflow artifact repository
