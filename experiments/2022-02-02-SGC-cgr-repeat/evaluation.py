@@ -12,6 +12,7 @@ from data import Dataset
 from sklearn.metrics import confusion_matrix
 import pandas as pd
 import plotly.express as px
+from deepspparks.utils import aggregate_targets
 
 
 def main():
@@ -43,16 +44,19 @@ def main():
             {
                 "run_id_best": params["model"]["best"],
                 "run_ids_k": ",".join(params["acc_vs_k"]),
+                "repeat_aggregator": params["repeat_aggregator"],
             }
         )
 
-        model = mlflow.pytorch.load_model(params["model"]["best"])
+        run_id = params["model"]["best"]
+        model = mlflow.pytorch.load_model(run_id)
 
         cmats = []
         # first, evaluate best model on data
         for d, label in zip(
             (dataset.train, dataset.val, dataset.test), ("train", "val", "test")
         ):
+            d = aggregate_targets(d, params["repeat_aggregator"], thresh)
             # get y_gt
             y_gt = (d.y > thresh).detach().numpy()
 
@@ -88,6 +92,7 @@ def main():
         for d, label in zip(
             (dataset.train, dataset.val, dataset.test), ("train", "val", "test")
         ):
+            d = aggregate_targets(d, params["repeat_aggregator"], thresh)
             # get y_gt
             y_gt = (d.y > thresh).detach().numpy()
 
