@@ -37,7 +37,7 @@ def train_loop(
     todo docstring
     """
     # move model to same device that data will be loaded to
-    model = model.to(data.device)
+    model = model.float().to(data.device)
 
     # create loaders for training and validation set, and optimizer for training model
     train_loader = DataLoader(
@@ -92,7 +92,7 @@ def train_loop(
     for train_epoch in t:  # continue until model trained for max epochs
         for _ in range(checkpoint_epoch):  # train for n epochs before checkpointing
             for batch in train_loader:  # each epoch, train on all batches in loader
-                batch = batch.to(data.device)
+                batch = batch.float().to(data.device)
                 train_step(model, batch, optimizer)
 
         # checkpoint: save model weighs, train loss, and val loss

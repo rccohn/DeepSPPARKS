@@ -240,7 +240,7 @@ def _node_transform(
 
     def transform_fn(patch: dict):
         # load image and set bakcground pixels to fixed value
-        img = torch.zeros(patch["size"], dtype=torch.double) + mapper["background"]
+        img = torch.zeros(patch["size"], dtype=torch.float) + mapper["background"]
         # fill in grain pixels with different intensity
         img[decode(patch).astype(bool)] = mapper["grain_intensities"][patch["type"]]
         # add dimension for color channel, so img is channels x rows x columns
@@ -261,7 +261,7 @@ def _edge_transform(mapper: dict) -> Callable:
 
     def transform_fn(patch: dict):
         # create image and fill in background with appropriate value
-        img = torch.zeros(patch["size"], dtype=torch.double) + mapper["background"]
+        img = torch.zeros(patch["size"], dtype=torch.float) + mapper["background"]
         # for each of the 2 grains on the grain boundary...
         for c, t, ec in zip(patch["counts"], patch["types"], patch["edge_coords"]):
             rle = {"size": patch["size"], "counts": c}

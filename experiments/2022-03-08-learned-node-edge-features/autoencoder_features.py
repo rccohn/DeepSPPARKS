@@ -255,7 +255,7 @@ def sample_performance(model, tv, data, idx, pca=False):
     if pca:
         artifact_path = "sample_images/{}-components/{}".format(model.n_components, tv)
     else:
-        "sample_images/{}".format(tv)
+        artifact_path = "sample_images/{}".format(tv)
 
     mlflow.log_artifact(str(figpath), artifact_path=artifact_path)
 
