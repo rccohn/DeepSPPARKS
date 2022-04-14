@@ -7,6 +7,7 @@ from deepspparks.utils import load_params
 from deepspparks.visualize import agg_cm
 from data import Dataset
 from sklearn.metrics import confusion_matrix
+import joblib
 
 
 def main():
@@ -33,16 +34,21 @@ def main():
         run_id = params["eval_run_id"]
         run = mlflow.get_run(run_id)
         crop = int(run.data.params["crop"])
+        whiten = int(run.data.params["pca_whiten"])
+        parent_run_id = run.data.tags["mlflow.parentRunId"]
+        client = mlflow.tracking.MlflowClient()
+
+        pca_path = "models/pca-{}whiten.joblib".format("no_" * (1 - whiten))
+        client.download_artifacts(parent_run_id, pca_path, "pca.joblib")
+        pca = joblib.load("pca.joblib")
+
         model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
 
         dataset = Dataset(params["mlflow"]["dataset_name"], crop)
         dataset.process(force=params["force_process_dataset"])
 
         mlflow.log_params(
-            {
-                "eval_model_run_id": run_id,
-                "crop": crop,
-            }
+            {"eval_model_run_id": run_id, "crop": crop, "pca_whiten": whiten}
         )
 
         cmats = []
@@ -55,7 +61,7 @@ def main():
             y_gt = d["y"].astype(np.uint8) > thresh
 
             # get y_pred
-            y_pred = model.predict(d["X"])
+            y_pred = model.predict(pca.transform(d["X"]))
 
             # get confusion matrix
             cmats.append(confusion_matrix(y_gt, y_pred))

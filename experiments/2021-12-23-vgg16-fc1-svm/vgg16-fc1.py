@@ -71,6 +71,9 @@ def main():
                     svd_solver="full",
                     whiten=bool(whiten),
                 )
+                # TODO log pca with mlflow.sklearn.log_model() instead of
+                #      mlflow.log_artifact() to make it easier to recall later
+
                 pca.fit(X_train_raw)
                 fname = artifact / "pca-{}.joblib".format(whiten_label)
                 joblib.dump(pca, fname)
