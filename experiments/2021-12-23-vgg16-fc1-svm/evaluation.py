@@ -38,10 +38,8 @@ def main():
         parent_run_id = run.data.tags["mlflow.parentRunId"]
         client = mlflow.tracking.MlflowClient()
 
-        pca_filename = "pca-{}whiten.joblib".format("no_" * (1 - whiten))
-        client.download_artifacts(
-            parent_run_id, "models/{}".format(pca_filename), "/root/artifacts/"
-        )
+        pca_filename = "models/pca-{}whiten.joblib".format("no_" * (1 - whiten))
+        client.download_artifacts(parent_run_id, pca_filename, "/root/artifacts/")
         pca = joblib.load("/root/artifacts/{}".format(pca_filename))
 
         model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
