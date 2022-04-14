@@ -115,13 +115,16 @@ class ConvAutoEncoderSimple(ConvAutoEncoderBase):
 
         self.dense_enc = nn.Sequential(
             nn.Linear(16 * 12 * 12, 2000),
+            nn.Dropout(0.5),
             self.relu,
-            nn.Linear(2000, 100),
+            nn.Linear(2000, 200),
+            nn.Dropout(0.5),
             self.relu,
         )
 
         self.dense_dec = nn.Sequential(
-            nn.Linear(100, 16 * 12 * 12),
+            nn.Linear(200, 16 * 12 * 12),
+            nn.Dropout(0.5),
             self.relu,
         )
 

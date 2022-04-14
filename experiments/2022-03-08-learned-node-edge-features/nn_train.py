@@ -95,6 +95,7 @@ def train_loop(
                 batch = batch.float().to(data.device)
                 train_step(model, batch, optimizer)
 
+        model.eval()
         # checkpoint: save model weighs, train loss, and val loss
         tl = batch_mse_loss(model, train_loader, data.device)
         vl = batch_mse_loss(model, val_loader, data.device)
@@ -119,6 +120,7 @@ def train_loop(
 
     print("logging model")  # logging model after training is complete
     model.load_state_dict(best_params)  # best model = lowest validation loss
+    model.eval()
 
     # compute performance on test set
     test_loader = DataLoader(
