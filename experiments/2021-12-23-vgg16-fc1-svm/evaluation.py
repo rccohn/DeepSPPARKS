@@ -42,8 +42,6 @@ def main():
             {
                 "eval_model_run_id": run_id,
                 "crop": crop,
-                "run_ids_k": ",".join(params["acc_vs_k_run_ids"]),
-                "repeat_aggregator": params["repeat_aggregator"],
             }
         )
 
