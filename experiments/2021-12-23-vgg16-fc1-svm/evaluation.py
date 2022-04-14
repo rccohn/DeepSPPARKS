@@ -52,10 +52,10 @@ def main():
         ):
 
             # get y_gt
-            y_gt = d.y[d.candidate_mask].astype(np.uint8) > thresh
+            y_gt = d["y"][d.candidate_mask].astype(np.uint8) > thresh
 
             # get y_pred
-            y_pred = model.predict(d.x)
+            y_pred = model.predict(d["X"])
 
             # get confusion matrix
             cmats.append(confusion_matrix(y_gt, y_pred))
