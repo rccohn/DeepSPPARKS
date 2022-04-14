@@ -34,14 +34,14 @@ def main():
         run = mlflow.get_run(run_id)
         crop = int(run.data.params["crop"])
         model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
-        mlflow.log_params({"eval_model_run_id": run_id, "crop": crop})
 
         dataset = Dataset(params["mlflow"]["dataset_name"], crop)
         dataset.process(force=params["force_process_dataset"])
 
         mlflow.log_params(
             {
-                "run_id_best": params["best_run_id"],
+                "eval_model_run_id": run_id,
+                "crop": crop,
                 "run_ids_k": ",".join(params["acc_vs_k_run_ids"]),
                 "repeat_aggregator": params["repeat_aggregator"],
             }
@@ -70,7 +70,7 @@ def main():
         artifact = Path("/", "root/", "artifacts/")
         savepath = artifact / "confusion_mats.npy"
         np.save(savepath, cmats, allow_pickle=False)
-        mlflow.log_artifact(str(savepath), artifact_path="best_model/")
+        mlflow.log_artifact(str(savepath), artifact_path="results/")
 
         # plot confusion matrices and save to mlflow
         # TODO modify agg_cm to save raw values for cm (at least optionally?)
