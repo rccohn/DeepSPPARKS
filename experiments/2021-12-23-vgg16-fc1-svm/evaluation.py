@@ -35,6 +35,7 @@ def main():
         run = mlflow.get_run(run_id)
         crop = int(run.data.params["crop"])
         whiten = int(run.data.params["pca_whiten"])
+        n_components = int(run.data.params["pca_n_components"])
         parent_run_id = run.data.tags["mlflow.parentRunId"]
         client = mlflow.tracking.MlflowClient()
 
@@ -48,7 +49,12 @@ def main():
         dataset.process(force=params["force_process_dataset"])
 
         mlflow.log_params(
-            {"eval_model_run_id": run_id, "crop": crop, "pca_whiten": whiten}
+            {
+                "eval_model_run_id": run_id,
+                "crop": crop,
+                "pca_whiten": whiten,
+                "pca_n_components": n_components,
+            }
         )
 
         cmats = []
@@ -61,7 +67,7 @@ def main():
             y_gt = d["y"].astype(np.uint8) > thresh
 
             # get y_pred
-            y_pred = model.predict(pca.transform(d["X"]))
+            y_pred = model.predict(pca.transform(d["X"][:, :n_components]))
 
             # get confusion matrix
             cmats.append(confusion_matrix(y_gt, y_pred))
