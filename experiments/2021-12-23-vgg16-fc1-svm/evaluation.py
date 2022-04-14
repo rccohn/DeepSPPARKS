@@ -67,7 +67,7 @@ def main():
             y_gt = d["y"].astype(np.uint8) > thresh
 
             # get y_pred
-            y_pred = model.predict(pca.transform(d["X"][:, :n_components]))
+            y_pred = model.predict(pca.transform(d["X"])[:, :n_components])
 
             # get confusion matrix
             cmats.append(confusion_matrix(y_gt, y_pred))
