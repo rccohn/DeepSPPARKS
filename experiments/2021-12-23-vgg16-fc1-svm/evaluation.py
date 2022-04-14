@@ -39,8 +39,8 @@ def main():
         client = mlflow.tracking.MlflowClient()
 
         pca_path = "models/pca-{}whiten.joblib".format("no_" * (1 - whiten))
-        client.download_artifacts(parent_run_id, pca_path, "pca.joblib")
-        pca = joblib.load("pca.joblib")
+        client.download_artifacts(parent_run_id, pca_path, "/root/artifacts/pca.joblib")
+        pca = joblib.load("/root/artifacts/pca.joblib")
 
         model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
 
