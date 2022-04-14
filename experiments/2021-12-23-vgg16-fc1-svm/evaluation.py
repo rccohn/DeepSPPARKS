@@ -30,7 +30,13 @@ def main():
 
         thresh = float(params["cgr_thresh"][0])
 
-        dataset = Dataset(params["mlflow"]["dataset_name"])
+        run_id = params["eval_run_id"]
+        run = mlflow.get_run(run_id)
+        crop = int(run.data.params["crop"])
+        model = mlflow.sklearn.load_model("runs:/{}/models/SGC".format(run_id))
+        mlflow.log_params({"eval_model_run_id": run_id, "crop": crop})
+
+        dataset = Dataset(params["mlflow"]["dataset_name"], crop)
         dataset.process(force=params["force_process_dataset"])
 
         mlflow.log_params(
@@ -40,10 +46,6 @@ def main():
                 "repeat_aggregator": params["repeat_aggregator"],
             }
         )
-
-        run_id = params["eval_run_id"]
-        model = mlflow.sklearn.load_model("runs:/{}/models/SGC".format(run_id))
-        mlflow.log_param("eval_model_run_id", run_id)
 
         cmats = []
         # first, evaluate best model on data
