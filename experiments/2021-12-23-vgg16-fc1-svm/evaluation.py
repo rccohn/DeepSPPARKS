@@ -1,6 +1,3 @@
-# read desired run/model from params
-# get model with mlflow.<package>.load_model
-# runs:/<mlflow_run_id>/run-relative/path/to/model
 import mlflow
 
 # from pathlib import Path
@@ -10,9 +7,6 @@ from deepspparks.utils import load_params
 from deepspparks.visualize import agg_cm
 from data import Dataset
 from sklearn.metrics import confusion_matrix
-import pandas as pd
-import plotly.express as px
-from deepspparks.utils import aggregate_targets
 
 
 def main():
@@ -48,7 +42,7 @@ def main():
         )
 
         run_id = params["eval_run_id"]
-        model = mlflow.pytorch.load_model("runs:/{}/models/SGC".format(run_id))
+        model = mlflow.sklearn.load_model("runs:/{}/models/SGC".format(run_id))
         mlflow.log_param("eval_model_run_id", run_id)
 
         cmats = []
@@ -56,12 +50,12 @@ def main():
         for d, label in zip(
             (dataset.train, dataset.val, dataset.test), ("train", "val", "test")
         ):
-            d = aggregate_targets(d, params["repeat_aggregator"], thresh)
+
             # get y_gt
-            y_gt = d.y[d.candidate_mask].detach().numpy().astype(int)
+            y_gt = d.y[d.candidate_mask].astype(np.uint8) > thresh
 
             # get y_pred
-            y_pred = model.predict(d, mask=d.candidate_mask).detach().numpy()
+            y_pred = model.predict(d.x)
 
             # get confusion matrix
             cmats.append(confusion_matrix(y_gt, y_pred))
@@ -84,63 +78,3 @@ def main():
             fpath=artifact / "confusion_matrices.png",
             artifact_path="best_model/",
         )
-
-    # loop through uris for k=1,2,3,4
-    # TODO finish this
-    k_vals = []
-    accs = {"train": [], "val": [], "test": []}
-    for model_uri in params["acc_vs_k_run_ids"]:
-        model = mlflow.pytorch.load_model("runs:/{}/models/SGC/".format(model_uri))
-        k_vals.append(model.k)
-        cmats = []
-        for d, label in zip(
-            (dataset.train, dataset.val, dataset.test), ("train", "val", "test")
-        ):
-            d = aggregate_targets(d, params["repeat_aggregator"], thresh)
-            # get y_gt
-            y_gt = d.y[d.candidate_mask].detach().numpy()
-
-            # get y_pred
-            y_pred = model.predict(d, mask=d.candidate_mask).detach().numpy()
-
-            # get confusion matrix
-            cmats.append(confusion_matrix(y_gt, y_pred))
-
-            accs[label].append((y_pred == y_gt).sum() / len(y_gt))
-
-        # log confusion matrices
-        artifact = Path("/", "root/", "artifacts/")
-        savepath = artifact / "confusion_mats.npy"
-        np.save(savepath, cmats, allow_pickle=False)
-        mlflow.log_artifact(
-            str(savepath), artifact_path="acc-vs-k/k={}".format(model.k)
-        )
-
-        agg_cm(
-            cmats,
-            return_figure=False,
-            fpath=artifact / "confusion_matrices.png",
-            artifact_path="best_model/",
-        )
-
-    # plot accs vs k
-    df = pd.concat(
-        [
-            pd.DataFrame({"k": k_vals, "accuracy": v, "dataset": [k for _ in v]})
-            for k, v in accs.items()
-        ]
-    )
-
-    fig = px.bar(df, x="k", y="accuracy", color="dataset", barmode="group")
-    fig.update_layout(font_size=18, hovermode="x unified")
-    figpath = artifact / "acc_vs_k.html"
-    fig.write_html(figpath)
-    dfpath = artifact / "acc_vs_k.csv"
-    df.to_csv(dfpath)
-
-    for path in (figpath, dfpath):
-        mlflow.log_artifact(str(path), artifact_path="acc-vs-k/")
-
-
-if __name__ == "__main__":
-    main()

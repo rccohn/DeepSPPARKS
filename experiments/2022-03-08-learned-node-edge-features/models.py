@@ -303,12 +303,10 @@ def make_layers_decoder(cfg, in_channels, batch_norm=False):
 
 class ConvAutoEncoderEdgeV1(ConvAutoEncoderBase):
     # for edge patches
-    def __init__(
-        self,
-    ):
+    def __init__(self, log=True):
         # input shape: (row, col)
         name = "ConvAutoEncoderV1"
-        super(ConvAutoEncoderEdgeV1, self).__init__(name=name)
+        super(ConvAutoEncoderEdgeV1, self).__init__(name=name, log=log)
         # TODO look at max vs avg pool
         # cfg 1 probably only useful for edge encoder, node encoder likely needs
         # 1 more pooling + 256 channel features
@@ -364,7 +362,8 @@ class ConvAutoEncoderEdgeV1(ConvAutoEncoderBase):
             self.input_shape[0] // 2**4,
             self.input_shape[1] // 2**4,
         )
-        x = torch.sigmoid(self.decoder(x))
+        # sigmoid possibly introduces vanishing gradient --> try relu
+        x = nn.ReLU(inplace=True)(self.decoder(x))
 
         return x
 
@@ -385,20 +384,18 @@ def batch_mse_loss(model, dataloader, device="cpu"):
     model = model.to(device)
     mean_loss = 0.0
     total_samples = 0
-    loss_fn = nn.MSELoss(reduction="sum")
+    loss_fn = nn.MSELoss(reduction="mean")
     for batch in dataloader:
         batch = batch.to(device)
         yp = model.predict(batch)
         # without detaching, gradients accumulate and memory blows up very
         # quickly. This is a very subtle issue but will cause massive problem.
-        loss = float(loss_fn(batch, yp).detach().cpu())
+        loss = float(loss_fn(batch, yp).detach())
         #
         m = len(batch)
         mean_loss += (loss - (m * mean_loss)) / (total_samples + m)
         total_samples += m
 
-    # average loss over number of pixels
-    mean_loss /= np.prod(batch.shape[1:])
     return mean_loss
 
 

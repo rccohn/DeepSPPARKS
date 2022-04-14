@@ -65,7 +65,7 @@ def pca_train(params: dict, dataloader):
     return model
 
 
-def pca_evaluate(dataset, model):
+def pca_evaluate(dataset, model, params):
     # dataset contains train, val, and test subsets
     from models import PCAEncoder
 
@@ -87,6 +87,10 @@ def pca_evaluate(dataset, model):
         vars = np.zeros_like(losses)
         for i, n in enumerate(n_components):
             model.n_components = n
+            for tv, data in zip(("train", "val"), (dataset.train, dataset.val)):
+                for idx in params["sample_results"][tv]:
+                    sample_performance(model, tv, data, idx, pca=True)
+
             losses[i] = float(batch_mse_loss(model, loader))
             vars[i] = var[n + 1]
         df_sub = pd.DataFrame(
@@ -176,7 +180,7 @@ def main():
             )
 
             model = pca_train(params, dataloader)
-            pca_evaluate(dataset, model)
+            pca_evaluate(dataset, model, params)
         else:
             model = autoencoder_train_and_evaluate(params, dataset)
 
@@ -188,7 +192,9 @@ def main():
                     sample_performance(model, tv, data, idx)
 
 
-def sample_performance(model, tv, data, idx):
+def sample_performance(model, tv, data, idx, pca=False):
+    # if pca -> number of components is stored
+
     model = model.to(data.device)
 
     # generate figures
@@ -232,9 +238,13 @@ def sample_performance(model, tv, data, idx):
         2,
     )
     fig.add_trace(go.Heatmap(z=diff, zmin=zmin, zmax=zmax, colorscale=cscale), 1, 3)
-    fig.update_layout(
-        title="{}-{}: mse loss: {:.4e}".format(tv, idx, loss), font={"size": 14}
-    )
+    if pca:
+        title_str = "{}-{}({} components): mse loss: {:.4e}".format(
+            tv, idx, model.n_components, loss
+        )
+    else:
+        title_str = "{}-{}: mse loss: {:.4e}".format(tv, idx, loss)
+    fig.update_layout(title=title_str, font={"size": 14})
 
     # save figure and log as mlflow artifact under
     # run/sample_images/{train, val}/0...01.html
@@ -242,7 +252,12 @@ def sample_performance(model, tv, data, idx):
     if not figpath.parent.exists():
         os.makedirs(figpath.parent, exist_ok=True)
     fig.write_html(str(figpath))
-    mlflow.log_artifact(str(figpath), artifact_path="sample_images/{}".format(tv))
+    if pca:
+        artifact_path = "sample_images/{}-components/{}".format(model.n_components, tv)
+    else:
+        "sample_images/{}".format(tv)
+
+    mlflow.log_artifact(str(figpath), artifact_path=artifact_path)
 
     # auto-encoder is a very open ended problem
     # the main things we want to do are:

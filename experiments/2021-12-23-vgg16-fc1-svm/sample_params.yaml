@@ -6,6 +6,9 @@ mlflow: # relevant mlflow parameters
   experiment_name: TEST # agg-single  # tracking experiment name
   dataset_name: candidate-grains-toy-lmd-v2.0.0  # path relative to dataset root
 
+# if set to 'eval', will run 'evaluation.py.main()' for scoring model
+entry: main
+
 # cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
 cgr_thresh: [8, 10] # [6, 8, 10, 12, 14]
 
@@ -19,6 +22,9 @@ pca_var: [25, 80] # [25, 50, 60, 65, 70, 75, 80, 90, 100]
 svm_min_c: -1.5
 svm_max_c: 1.5
 svm_num_c: 5 # 50
+
+# only used for evaluation mode
+eval_run_id: 31ea3ba5f003400297a355542fccf1b0
 
 # recompute features/targets, even if existing processed data is found
 force_process_dataset: False

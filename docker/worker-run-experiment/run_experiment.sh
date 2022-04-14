@@ -101,7 +101,7 @@ echo "    GPU? (blank for cpu): ${GPU_ARG}"
 ${MLFLOW_EXE} run  \
     -e ${ENTRYPOINT} `# entrypoint (default main)`\
     ${VERSION_ARG} ${VERSION} `# mlflow project version`\
-	-A network="host -it" `# docker: host networking`\
+	-A network="host" `# docker: host networking`\
 	${GPU_ARG}\
 	${PROJECT_URI}  # project uri
 # -A gpus all `#enable gpu' \
