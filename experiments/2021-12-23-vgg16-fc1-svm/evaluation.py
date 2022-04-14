@@ -88,5 +88,5 @@ def main():
             cmats,
             return_figure=False,
             fpath=artifact / "confusion_matrices.png",
-            artifact_path="best_model/",
+            artifact_path="results/",
         )
