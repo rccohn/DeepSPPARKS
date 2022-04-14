@@ -33,7 +33,7 @@ def main():
         run_id = params["eval_run_id"]
         run = mlflow.get_run(run_id)
         crop = int(run.data.params["crop"])
-        model = mlflow.sklearn.load_model("runs:/{}/models/SGC".format(run_id))
+        model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
         mlflow.log_params({"eval_model_run_id": run_id, "crop": crop})
 
         dataset = Dataset(params["mlflow"]["dataset_name"], crop)
