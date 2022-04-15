@@ -17,6 +17,7 @@ class Dataset:
     def __init__(
         self,
         name,
+        mode,
         node_feature_model_uri,
         edge_feature_model_uri,
         raw_root="/root/data/datasets",
@@ -25,6 +26,7 @@ class Dataset:
     ):
 
         self.dataset_name = name
+        self.mode = mode  # either "autoencoder" or "pca"
         self.node_feature_uri = node_feature_model_uri
         self.edge_feature_uri = edge_feature_model_uri
         self.target_name = "candidate_growth_ratio_repeats"
@@ -38,6 +40,13 @@ class Dataset:
             self.target_name,
         )
 
+        self.train = None
+        self.val = None
+        self.test = None
+
+        if log:
+            self._log()
+
     def _log(self):
         mlflow.set_tags(
             {
@@ -47,3 +56,9 @@ class Dataset:
                 "targets": self.target_name,
             }
         )
+
+    def process(self):
+        # TODO save hash of train, val, test directories to verify
+        #      processed data has not been changed
+        if self.mode == "pca":
+            pass  # need pca model wrapper and number of components

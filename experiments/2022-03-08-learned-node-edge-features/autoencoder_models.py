@@ -139,7 +139,17 @@ class ConvAutoEncoderSimple(ConvAutoEncoderBase):
             self.relu,
             nn.ConvTranspose2d(4, 1, kernel_size=2, stride=2),
             self.relu,
-            Conv2d_std(1, 1),
+            nn.Conv2d(
+                1,
+                1,
+                1,
+            ),
+            self.relu,
+            nn.Conv2d(
+                1,
+                1,
+                1,
+            ),
             self.relu,
         )
 
