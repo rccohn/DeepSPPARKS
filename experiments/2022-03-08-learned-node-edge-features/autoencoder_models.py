@@ -135,7 +135,13 @@ class ConvAutoEncoderSimple(ConvAutoEncoderBase):
             self.relu,
             nn.ConvTranspose2d(8, 4, kernel_size=2, stride=2),
             self.relu,
-            Conv2d_std(4, 4),
+            # TODO see if replacing more 3x3 convs with 1x1 convs
+            #      reduces problem with blurring
+            nn.Conv2d(
+                4,
+                4,
+                1,
+            ),
             self.relu,
             nn.ConvTranspose2d(4, 1, kernel_size=2, stride=2),
             self.relu,
