@@ -75,7 +75,7 @@ def pca_evaluate(dataset, model, params):
     model = PCAEncoder(model)
     # measure performance with several fractions of variance
     var = model.pca_model.explained_variance_ratio_.cumsum()
-    n_components = [np.argmax(var >= x) + 1 for x in (0.3, 0.5, 0.8, 0.9, 0.95, 0.96)]
+    n_components = params["pca"]["eval_components"]
     dfs = []
     for title, subset in zip(
         ("train", "val", "test"), (dataset.train, dataset.val, dataset.test)
@@ -92,7 +92,7 @@ def pca_evaluate(dataset, model, params):
                     sample_performance(model, tv, data, idx, pca=True)
 
             losses[i] = float(batch_mse_loss(model, loader))
-            vars[i] = var[n + 1]
+            vars[i] = var[n - 1]
         df_sub = pd.DataFrame(
             {"n_components": n_components, "var": vars, "mse_loss": losses.tolist()}
         )
@@ -156,18 +156,23 @@ def main():
     params = load_params(param_file)
     name = params["mlflow"]["dataset_name"]
     device = None if params["which"]["model"] != "pca" else "cpu"
-    dataset = Dataset(
-        name,
-        params["which"]["patches"],  # indicates node vs edge patches
-        device=device,
-    )
+
     with mlflow.start_run(nested=False):
+        # for some reason, run_name not working with start_run()? run started elsehwere?
+        # either way updating the run name tag here works
+        mlflow.set_tag("mlflow.runName", "autoencoder_features")
         mlflow.log_artifact(param_file)
         mlflow.log_params(
             {
                 "patches": params["which"]["patches"],
                 "pca_or_autoencoder": params["which"]["model"],
             }
+        )
+
+        dataset = Dataset(
+            name,
+            params["which"]["patches"],  # indicates node vs edge patches
+            device=device,
         )
 
         dataset.process()

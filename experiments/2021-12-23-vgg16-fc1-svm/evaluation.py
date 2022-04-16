@@ -26,11 +26,10 @@ def main():
     # not figure/log (can still generate plots with standardized functions)
     # measure accuracy vs k, save results as txt and generate plot
 
-    with mlflow.start_run(run_name="sgc-eval", nested=False):
+    with mlflow.start_run(run_name="svm-eval", nested=False):
         mlflow.log_artifact(param_file)
 
         thresh = float(params["cgr_thresh"][0])
-
         run_id = params["eval_run_id"]
         run = mlflow.get_run(run_id)
         crop = int(run.data.params["crop"])

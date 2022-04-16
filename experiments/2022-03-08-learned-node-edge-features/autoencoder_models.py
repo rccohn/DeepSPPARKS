@@ -86,6 +86,62 @@ class ConvAutoEncoderTest(ConvAutoEncoderBase):
         return x
 
 
+class ConvAutoEncoderTiny(ConvAutoEncoderBase):
+    def __init__(self, dropout_p=0.5, log=True):
+        name = "ConvAutoEncoderTiny-v1"
+        super(ConvAutoEncoderTiny, self).__init__(name=name, log=log)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.relu = nn.ReLU(inplace=True)
+        self.dropout = nn.Dropout(p=dropout_p)
+        self.features = nn.Sequential(
+            Conv2d_std(1, 8),
+            self.relu,
+            self.pool,
+            Conv2d_std(8, 16),
+            self.relu,
+            self.pool,
+            Conv2d_std(16, 32),
+            self.relu,
+            self.pool,
+        )
+
+        self.linear_enc = nn.Sequential(
+            nn.Linear(32 * 12 * 12, 500),
+            self.dropout,
+            self.relu,
+            nn.Linear(500, 200),
+            self.dropout,
+            self.relu,
+        )
+
+        self.linear_dec = nn.Sequential(
+            nn.Linear(200, 32 * 12 * 12),
+            self.dropout,
+            self.relu,
+        )
+        self.conv_dec = nn.Sequential(
+            nn.ConvTranspose2d(
+                in_channels=32, out_channels=16, kernel_size=2, stride=2
+            ),
+            self.relu,
+            nn.ConvTranspose2d(in_channels=16, out_channels=8, kernel_size=2, stride=2),
+            self.relu,
+            nn.ConvTranspose2d(in_channels=8, out_channels=1, kernel_size=2, stride=2),
+        )
+
+    def encode(self, x):
+        x = self.features(x)
+        x = x.reshape(len(x), 32 * 12 * 12)
+        x = self.linear_enc(x)
+        return x
+
+    def decode(self, x):
+        x = self.linear_dec(x)
+        x = x.reshape(len(x), 32, 12, 12)
+        x = self.conv_dec(x)
+        return x
+
+
 class ConvAutoEncoderSimple(ConvAutoEncoderBase):
     def __init__(self, log=True):
         name = "ConvAutoEncoderSimplev1"

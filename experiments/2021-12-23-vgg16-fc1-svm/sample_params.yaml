@@ -24,7 +24,12 @@ svm_max_c: 1.5
 svm_num_c: 5 # 50
 
 # only used for evaluation mode
-eval_run_id: 31ea3ba5f003400297a355542fccf1b0
+eval_run_id: 0b4c8c09402d47f68073978ea67f2fa0
+
+#  0b4c8c09402d47f68073978ea67f2fa0 # small dataset, cropped
+#  0a2168b509f844a8be847c826c637fc4 # small dataset, no cropping
+#  88cff41fe1264d6cb720b749c622c28f # large dataset, cropping
+#  2858a48a1ab54fcca5da540844d24e97 # large dataset, no cropping
 
 # recompute features/targets, even if existing processed data is found
 force_process_dataset: False

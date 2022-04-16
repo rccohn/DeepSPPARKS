@@ -198,7 +198,7 @@ def batch_mse_loss(model, dataloader, device="cpu"):
     # efficient running mean loss does not rely on large sums
     # derived from mu[j]-mu[i] = (sum[x_i]/ + sum[xj])/(n+m) - (sum[xi]/n)
     # set mu[j]-mu[i] = delta, solve for delta, then mu[j] = mu[i] + delta
-    model = model.float().to(device)
+    model = model.to(torch.float).to(device)
     mean_loss = 0.0
     total_samples = 0
     loss_fn = nn.MSELoss(reduction="mean")
@@ -236,6 +236,7 @@ def get_autoencoder(model_name: str) -> torch.nn.Module:
         "test": autoencoder_models.ConvAutoEncoderTest,
         "ConvAutoEncoderEdgeV1": autoencoder_models.ConvAutoEncoderEdgeV1,
         "ConvAutoEncoderSimple": autoencoder_models.ConvAutoEncoderSimple,
+        "ConvAutoEncoderTiny": autoencoder_models.ConvAutoEncoderTiny,
     }
     return models[model_name]
 

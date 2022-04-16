@@ -21,7 +21,8 @@ sample_results:
 
 # pca settings are only used if params["which"]["model] == "pca"
 pca:
-  n_components: 200  # maximum number of components to include
+  n_components: 550  # maximum number of components to include
+  eval_components: [10, 25, 50, 100, 250, 500]  # number of components to use when generating sample images
 
 # autoencoder, optimizer, and other training params are only used if params["which"]["model"] == "autoencoder"
 autoencoder:
