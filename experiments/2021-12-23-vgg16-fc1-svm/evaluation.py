@@ -29,7 +29,7 @@ def main():
     with mlflow.start_run(nested=False):
         # run name does not get stored?
         # setting tag manually seems to work...?
-        mlflow.set_tag("run_name", "svm-eval")
+        mlflow.set_tag("mlflow.runName", "svm-eval")
         mlflow.log_artifact(param_file)
 
         thresh = float(params["cgr_thresh"][0])
