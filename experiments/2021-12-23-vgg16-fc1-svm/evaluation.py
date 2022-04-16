@@ -26,7 +26,10 @@ def main():
     # not figure/log (can still generate plots with standardized functions)
     # measure accuracy vs k, save results as txt and generate plot
 
-    with mlflow.start_run(run_name="svm-eval", nested=False):
+    with mlflow.start_run(nested=False):
+        # run name does not get stored?
+        # setting tag manually seems to work...?
+        mlflow.set_tag("run_name", "svm-eval")
         mlflow.log_artifact(param_file)
 
         thresh = float(params["cgr_thresh"][0])
