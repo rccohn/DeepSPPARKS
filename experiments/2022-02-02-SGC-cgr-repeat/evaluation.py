@@ -47,6 +47,7 @@ def main():
                 "run_id_eval": params["eval_run_id"],
                 "run_ids_k": ",".join(params["acc_vs_k_run_ids"]),
                 "repeat_aggregator": params["repeat_aggregator"],
+                "cgr_thresh": thresh,
             }
         )
 
