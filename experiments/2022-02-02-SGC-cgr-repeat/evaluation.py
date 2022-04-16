@@ -31,7 +31,10 @@ def main():
     # not figure/log (can still generate plots with standardized functions)
     # measure accuracy vs k, save results as txt and generate plot
 
-    with mlflow.start_run(run_name="sgc-eval", nested=False):
+    with mlflow.start_run(nested=False):
+        # run name not being updated correctly...?
+        # setting tag manually seems to work
+        mlflow.set_tag("mlflow.runName", "sgc-eval")
         mlflow.log_artifact(param_file)
 
         thresh = float(params["cgr_thresh"][0])
@@ -85,61 +88,61 @@ def main():
             artifact_path="best_model/",
         )
 
-    # loop through uris for k=1,2,3,4
-    # TODO finish this
-    k_vals = []
-    accs = {"train": [], "val": [], "test": []}
-    for model_uri in params["acc_vs_k_run_ids"]:
-        model = mlflow.pytorch.load_model("runs:/{}/models/SGC/".format(model_uri))
-        k_vals.append(model.k)
-        cmats = []
-        for d, label in zip(
-            (dataset.train, dataset.val, dataset.test), ("train", "val", "test")
-        ):
-            d = aggregate_targets(d, params["repeat_aggregator"], thresh)
-            # get y_gt
-            y_gt = d.y[d.candidate_mask].detach().numpy()
+        # loop through uris for k=1,2,3,4
+        # TODO finish this
+        k_vals = []
+        accs = {"train": [], "val": [], "test": []}
+        for model_uri in params["acc_vs_k_run_ids"]:
+            model = mlflow.pytorch.load_model("runs:/{}/models/SGC/".format(model_uri))
+            k_vals.append(model.k)
+            cmats = []
+            for d, label in zip(
+                (dataset.train, dataset.val, dataset.test), ("train", "val", "test")
+            ):
+                d = aggregate_targets(d, params["repeat_aggregator"], thresh)
+                # get y_gt
+                y_gt = d.y[d.candidate_mask].detach().numpy()
 
-            # get y_pred
-            y_pred = model.predict(d, mask=d.candidate_mask).detach().numpy()
+                # get y_pred
+                y_pred = model.predict(d, mask=d.candidate_mask).detach().numpy()
 
-            # get confusion matrix
-            cmats.append(confusion_matrix(y_gt, y_pred))
+                # get confusion matrix
+                cmats.append(confusion_matrix(y_gt, y_pred))
 
-            accs[label].append((y_pred == y_gt).sum() / len(y_gt))
+                accs[label].append((y_pred == y_gt).sum() / len(y_gt))
 
-        # log confusion matrices
-        artifact = Path("/", "root/", "artifacts/")
-        savepath = artifact / "confusion_mats.npy"
-        np.save(savepath, cmats, allow_pickle=False)
-        mlflow.log_artifact(
-            str(savepath), artifact_path="acc-vs-k/k={}".format(model.k)
+            # log confusion matrices
+            artifact = Path("/", "root/", "artifacts/")
+            savepath = artifact / "confusion_mats.npy"
+            np.save(savepath, cmats, allow_pickle=False)
+            mlflow.log_artifact(
+                str(savepath), artifact_path="acc-vs-k/k={}".format(model.k)
+            )
+
+            agg_cm(
+                cmats,
+                return_figure=False,
+                fpath=artifact / "confusion_matrices.png",
+                artifact_path="best_model/",
+            )
+
+        # plot accs vs k
+        df = pd.concat(
+            [
+                pd.DataFrame({"k": k_vals, "accuracy": v, "dataset": [k for _ in v]})
+                for k, v in accs.items()
+            ]
         )
 
-        agg_cm(
-            cmats,
-            return_figure=False,
-            fpath=artifact / "confusion_matrices.png",
-            artifact_path="best_model/",
-        )
+        fig = px.bar(df, x="k", y="accuracy", color="dataset", barmode="group")
+        fig.update_layout(font_size=18, hovermode="x unified")
+        figpath = artifact / "acc_vs_k.html"
+        fig.write_html(figpath)
+        dfpath = artifact / "acc_vs_k.csv"
+        df.to_csv(dfpath)
 
-    # plot accs vs k
-    df = pd.concat(
-        [
-            pd.DataFrame({"k": k_vals, "accuracy": v, "dataset": [k for _ in v]})
-            for k, v in accs.items()
-        ]
-    )
-
-    fig = px.bar(df, x="k", y="accuracy", color="dataset", barmode="group")
-    fig.update_layout(font_size=18, hovermode="x unified")
-    figpath = artifact / "acc_vs_k.html"
-    fig.write_html(figpath)
-    dfpath = artifact / "acc_vs_k.csv"
-    df.to_csv(dfpath)
-
-    for path in (figpath, dfpath):
-        mlflow.log_artifact(str(path), artifact_path="acc-vs-k/")
+        for path in (figpath, dfpath):
+            mlflow.log_artifact(str(path), artifact_path="acc-vs-k/")
 
 
 if __name__ == "__main__":
