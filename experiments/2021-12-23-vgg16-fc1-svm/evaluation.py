@@ -56,6 +56,7 @@ def main():
                 "crop": crop,
                 "pca_whiten": whiten,
                 "pca_n_components": n_components,
+                "cgr_thresh": thresh,
             }
         )
 
