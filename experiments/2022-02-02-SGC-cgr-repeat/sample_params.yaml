@@ -34,10 +34,10 @@ force_process_dataset: False
 # Evaluation run ids- ignored if params['entry'] != "eval"
 
 # run id of best performing run to generate confusion matrices from
-eval_run: 26a1e34a9d82464db58c0e71d70e247e
+eval_run_id: 26a1e34a9d82464db58c0e71d70e247e
 
 # list of ids of runs to generate bar graph of accuracy vs k for
-acc_vs_k:
+acc_vs_k_run_ids:
   - 51f8816f70ee4d7895ec0d4ecceba27a
   - 26417e71d2b849a5bcb95497dd8195df
   - 5e77d839910f4403aae462fa4793f24e
