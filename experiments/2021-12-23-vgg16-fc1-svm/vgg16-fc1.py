@@ -69,7 +69,7 @@ def main():
                 # don't use tracking server to store results for each of these in a run
                 # instead,
 
-                print("fitting pca (whitening = {}".format(bool(whiten)))
+                print("fitting pca (whitening = {})".format(bool(whiten)))
                 pca = PCA(
                     n_components=min(X_train_raw.shape),
                     svd_solver="full",
@@ -207,9 +207,8 @@ def main():
                         # train/val accs vs c for different settings in child run?
 
                         # save model as mlflow model
-                        # TODO I think this over-writes model each time, losing results
-                        # mlflow.sklearn.log_model(best_model,
-                        # artifact_path="models/svm")
+
+                        mlflow.sklearn.log_model(best_model, artifact_path="models/svm")
 
                         # evaluate best model on test set log metrics, confusion
                         # matrices, acc vs c plot (for each number of components?)
