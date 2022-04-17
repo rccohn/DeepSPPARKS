@@ -82,6 +82,7 @@ def main():
                 mlflow.sklearn.log_model(
                     pca, artifact_path="models/{}".format(fname.stem)
                 )
+                joblib.dump(pca, fname)
 
                 # variance vs components plot
                 fig = scree_plot(pca.explained_variance_ratio_)
