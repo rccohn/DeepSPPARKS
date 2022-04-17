@@ -14,7 +14,8 @@ import joblib
 
 def main():
     print("Setting up experiment")
-    params = load_params("/root/inputs/params.yaml")  # input deck
+    param_file = "/root/inputs/params.yaml"
+    params = load_params(param_file)  # input deck
 
     if params.get("entry", "") == "eval":  # run evaluation instead of training
         import evaluation
@@ -29,6 +30,9 @@ def main():
     # project generates a run ID associated with the project. Instead, we set the
     # runName tag manually with mlflow.set_tag()
     with mlflow.start_run(nested=False):
+
+        mlflow.log_artifact(param_file)
+
         best_val_acc_all = -1
         best_thresh_all = -1
         best_whiten_all = -1
@@ -71,13 +75,14 @@ def main():
                     svd_solver="full",
                     whiten=bool(whiten),
                 )
-                # TODO log pca with mlflow.sklearn.log_model() instead of
-                #      mlflow.log_artifact() to make it easier to recall later
 
                 pca.fit(X_train_raw)
                 fname = artifact / "pca-{}.joblib".format(whiten_label)
-                joblib.dump(pca, fname)
-                mlflow.log_artifact(str(fname), "models")
+
+                mlflow.sklearn.log_model(
+                    pca, artifact_path="models/{}".format(fname.stem)
+                )
+
                 # variance vs components plot
                 fig = scree_plot(pca.explained_variance_ratio_)
                 figpath = artifact / "pca-{}-variance.html".format(whiten_label)
@@ -201,7 +206,9 @@ def main():
                         # train/val accs vs c for different settings in child run?
 
                         # save model as mlflow model
-                        mlflow.sklearn.log_model(best_model, artifact_path="models/svm")
+                        # TODO I think this over-writes model each time, losing results
+                        # mlflow.sklearn.log_model(best_model,
+                        # artifact_path="models/svm")
 
                         # evaluate best model on test set log metrics, confusion
                         # matrices, acc vs c plot (for each number of components?)
