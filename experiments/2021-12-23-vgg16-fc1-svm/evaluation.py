@@ -49,6 +49,11 @@ def main():
         model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
         assert model.support_vectors_.shape[1] == n_components
 
+        print(
+            f"whiten: {pca.whiten} n_components: {pca.n_components}"
+            "({model.support_vectors_.shape[1]}) c: {model.C}"
+        )
+
         dataset = Dataset(params["mlflow"]["dataset_name"], crop=crop)
         dataset.process(force=params["force_process_dataset"])
 
