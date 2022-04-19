@@ -7,7 +7,6 @@ from deepspparks.utils import load_params
 from deepspparks.visualize import agg_cm
 from data import Dataset
 from sklearn.metrics import confusion_matrix
-import joblib
 
 
 def main():
@@ -39,11 +38,13 @@ def main():
         whiten = int(run.data.params["pca_whiten"])
         n_components = int(run.data.params["pca_n_components"])
         parent_run_id = run.data.tags["mlflow.parentRunId"]
-        client = mlflow.tracking.MlflowClient()
 
-        pca_filename = "models/pca-{}whiten.joblib".format("no_" * (1 - whiten))
-        client.download_artifacts(parent_run_id, pca_filename, "/root/artifacts/")
-        pca = joblib.load("/root/artifacts/{}".format(pca_filename))
+        # get correct pca model (either using whitening or without whitening)
+        pca_filename = "models/pca-{}whiten".format("no_" * (1 - whiten))
+        pca = mlflow.sklearn.load_model(
+            "runs:/{}/{}".format(parent_run_id, pca_filename),
+            dst_path="/root/artifacts",
+        )
 
         model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
 
