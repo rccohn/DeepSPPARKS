@@ -33,22 +33,11 @@ def main():
 
         mlflow.log_artifact(param_file)
 
+        # replace with better scores as models are trained
         best_val_acc_all = -1
-        best_thresh_all = -1
-        best_whiten_all = -1
-        best_crop_all = -1
-        best_train_acc_all = -1
-        best_c_all = -1
-        best_n_components_all = -1
 
-        results_all = (
-            []
-        )  # concatenating all results for more convenient analysis of all child runs.
-        # of course, if space becomes an issue, then you can just store the
-        # individual child results and then concatenate them later outside of
-        # artifact storage.
-
-        # remember to log dataset/feature/targets
+        # store results from all child run in parent run for convenience
+        results_all = []
 
         for crop in (0, 1):  # False, True
 
@@ -115,18 +104,8 @@ def main():
                             }
                         )
 
-                        results_header = (
-                            "n_components",
-                            "var",
-                            "svm_c",
-                            "train_acc",
-                            "val_acc",
-                        )
                         results = []
-                        best_n_components = 0
                         best_val_acc = -1.0
-                        best_train_acc = -1.0
-                        best_c = -1.0
 
                         y_train = (dataset.train["y"] > cgr_thresh).astype(int)
                         y_val = (dataset.val["y"] > cgr_thresh).astype(int)
@@ -175,6 +154,8 @@ def main():
                                     best_cgr_thresh = cgr_thresh
                                     best_whiten = whiten
 
+                        # log best model and params
+                        mlflow.sklearn.log_model(best_model, artifact_path="models/svm")
                         mlflow.log_params(
                             {
                                 "svm_c": best_c,
@@ -182,6 +163,25 @@ def main():
                                 "pca_n_components": best_n_components,
                             }
                         )
+
+                        results_header = (
+                            "n_components",
+                            "var",
+                            "svm_c",
+                            "train_acc",
+                            "val_acc",
+                        )
+
+                        # log results for run TODO this could probably be wrapped
+                        #  into a deepspparks function
+                        df = pd.DataFrame(data=results, columns=results_header)
+                        results_path = artifact / "results.csv"
+                        df.to_csv(results_path, index_label="index")
+                        mlflow.log_artifact(str(results_path), artifact_path="results")
+                        results_path = artifact / "results.html"
+                        df.to_html(results_path)
+                        mlflow.log_artifact(str(results_path), artifact_path="results")
+
                         # keep track of best performing model for parent run
                         results_all.append((results, crop, whiten, cgr_thresh))
                         if best_val_acc > best_val_acc_all:  # save for outer run
@@ -194,21 +194,7 @@ def main():
                             best_thresh_all = best_cgr_thresh
                             best_whiten_all = best_whiten
 
-                        # log results for run TODO this could probably be wrapped
-                        #  into a deepspparks function
-                        df = pd.DataFrame(data=results, columns=results_header)
-                        results_path = artifact / "results.csv"
-                        df.to_csv(results_path, index_label="index")
-                        mlflow.log_artifact(str(results_path), artifact_path="results")
-                        results_path = artifact / "results.html"
-                        df.to_html(results_path)
-                        mlflow.log_artifact(str(results_path), artifact_path="results")
-
                         # train/val accs vs c for different settings in child run?
-
-                        # save model as mlflow model
-
-                        mlflow.sklearn.log_model(best_model, artifact_path="models/svm")
 
                         # evaluate best model on test set log metrics, confusion
                         # matrices, acc vs c plot (for each number of components?)
@@ -279,6 +265,8 @@ def main():
             (1 - best_whiten_all) * "no_" + "whiten"
         )
         pca = joblib.load(fname)
+        assert pca.whiten == bool(best_whiten_all)
+        dataset = Dataset(params["mlflow"]["dataset_name"], best_crop_all, log=False)
         X_train = pca.transform(dataset.train["X"])[:, :best_n_components_all]
         X_val = pca.transform(dataset.val["X"])[:, :best_n_components_all]
         X_test = pca.transform(dataset.test["X"])[:, :best_n_components_all]

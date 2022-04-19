@@ -45,10 +45,11 @@ def main():
             "runs:/{}/{}".format(parent_run_id, pca_filename),
             dst_path="/root/artifacts",
         )
-
+        assert pca.whiten == whiten
         model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
+        assert model.support_vectors_.shape[1] == n_components
 
-        dataset = Dataset(params["mlflow"]["dataset_name"], crop)
+        dataset = Dataset(params["mlflow"]["dataset_name"], crop=crop)
         dataset.process(force=params["force_process_dataset"])
 
         mlflow.log_params(
