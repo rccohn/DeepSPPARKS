@@ -74,10 +74,13 @@ def main():
         ):
 
             # get y_gt
-            y_gt = d["y"].astype(np.uint8) > thresh
+            y_gt = (d["y"] > thresh).astype(np.uint8)
 
             # get y_pred
             y_pred = model.predict(pca.transform(d["X"])[:, :n_components])
+
+            print("gt: ", y_gt.dtype, y_gt[:20])
+            print("yp: ", y_pred.dtype, y_pred[:20])
 
             # get confusion matrix
             cmats.append(confusion_matrix(y_gt, y_pred))
