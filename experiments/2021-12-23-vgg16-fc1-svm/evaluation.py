@@ -31,9 +31,9 @@ def main():
         mlflow.set_tag("mlflow.runName", "svm-eval")
         mlflow.log_artifact(param_file)
 
-        thresh = float(params["cgr_thresh"][0])
         run_id = params["eval_run_id"]
         run = mlflow.get_run(run_id)
+        thresh = float(run.data.params["cgr_thresh"])
         crop = int(run.data.params["crop"])
         whiten = int(run.data.params["pca_whiten"])
         n_components = int(run.data.params["pca_n_components"])
@@ -45,14 +45,8 @@ def main():
             "runs:/{}/{}".format(parent_run_id, pca_filename),
             dst_path="/root/artifacts",
         )
-        assert pca.whiten == whiten
-        model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
-        assert model.support_vectors_.shape[1] == n_components
 
-        print(
-            f"whiten: {pca.whiten} n_components: {pca.n_components}"
-            f"({model.support_vectors_.shape[1]}) c: {model.C}"
-        )
+        model = mlflow.sklearn.load_model("runs:/{}/models/svm".format(run_id))
 
         dataset = Dataset(params["mlflow"]["dataset_name"], crop=crop)
         dataset.process(force=params["force_process_dataset"])
@@ -77,10 +71,8 @@ def main():
             y_gt = (d["y"] > thresh).astype(np.uint8)
 
             # get y_pred
-            y_pred = model.predict(pca.transform(d["X"])[:, :n_components])
-
-            print("gt: ", y_gt.dtype, y_gt[:20])
-            print("yp: ", y_pred.dtype, y_pred[:20])
+            x_pca = pca.transform(d["X"])[:, :n_components]
+            y_pred = model.predict(x_pca)
 
             # get confusion matrix
             cmats.append(confusion_matrix(y_gt, y_pred))
