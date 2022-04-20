@@ -60,7 +60,7 @@ def main():
                 # instead,
 
                 print(
-                    "fitting pca (crop = {}whitening = {})".format(
+                    "fitting pca (crop = {}, whitening = {})".format(
                         bool(crop), bool(whiten)
                     )
                 )
@@ -272,6 +272,7 @@ def main():
         pca = mlflow.sklearn.load_model(best_pca_path)
         assert pca.whiten == bool(best_whiten_all)
         dataset = Dataset(params["mlflow"]["dataset_name"], best_crop_all, log=False)
+        dataset.load()
         X_train = pca.transform(dataset.train["X"])[:, :best_n_components_all]
         X_val = pca.transform(dataset.val["X"])[:, :best_n_components_all]
         X_test = pca.transform(dataset.test["X"])[:, :best_n_components_all]
