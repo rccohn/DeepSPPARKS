@@ -81,7 +81,7 @@ def main():
                 # variance vs components plot
                 fig = scree_plot(pca.explained_variance_ratio_)
                 figpath = artifact / "pca-{}-{}-variance.html".format(
-                    ("no_" * 1 - crop) + "crop", ("no_" * 1 - whiten) + "whiten"
+                    ("no_" * (1 - crop)) + "crop", ("no_" * (1 - whiten)) + "whiten"
                 )
                 fig.write_html(figpath)
                 mlflow.log_artifact(str(figpath), "figures")
