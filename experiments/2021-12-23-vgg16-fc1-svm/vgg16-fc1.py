@@ -9,7 +9,8 @@ from deepspparks.metrics import log_classification_report
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, confusion_matrix
-import joblib
+
+from run_paths import pca_path
 
 
 def main():
@@ -39,7 +40,7 @@ def main():
         # store results from all child run in parent run for convenience
         results_all = []
 
-        for crop in (0, 1):  # False, True
+        for crop in range(2):
 
             # both crop and uncropped datasets are used
             # so we set log=False and remember to log parameters in child runs
@@ -51,14 +52,18 @@ def main():
                 force=params["force_process_dataset"],
             )
             X_train_raw = dataset.train["X"]
-            for whiten, whiten_label in enumerate(("no_whiten", "whiten")):
+            for whiten in range(2):
 
                 # fit pca once, and use subsets of data for individual experiments
 
                 # don't use tracking server to store results for each of these in a run
                 # instead,
 
-                print("fitting pca (whitening = {})".format(bool(whiten)))
+                print(
+                    "fitting pca (crop = {}whitening = {})".format(
+                        bool(crop), bool(whiten)
+                    )
+                )
                 pca = PCA(
                     n_components=min(X_train_raw.shape),
                     svd_solver="full",
@@ -66,16 +71,18 @@ def main():
                 )
 
                 pca.fit(X_train_raw)
-                fname = artifact / "pca-{}.joblib".format(whiten_label)
 
-                mlflow.sklearn.log_model(
-                    pca, artifact_path="models/{}".format(fname.stem)
-                )
-                joblib.dump(pca, fname)
+                pca_path_local = pca_path(crop, whiten, local=True)
+                pca_path_artifact = pca_path(crop, whiten, local=False)
+
+                mlflow.sklearn.save_model(pca, path=pca_path_local)
+                mlflow.sklearn.log_model(pca, artifact_path=pca_path_artifact)
 
                 # variance vs components plot
                 fig = scree_plot(pca.explained_variance_ratio_)
-                figpath = artifact / "pca-{}-variance.html".format(whiten_label)
+                figpath = artifact / "pca-{}-{}-variance.html".format(
+                    ("no_" * 1 - crop) + "crop", ("no_" * 1 - whiten) + "whiten"
+                )
                 fig.write_html(figpath)
                 mlflow.log_artifact(str(figpath), "figures")
 
@@ -124,8 +131,11 @@ def main():
                                 params["svm_num_c"],
                             ):
                                 print(
-                                    "fitting svm for cgr_thresh = {}, var={}, "
-                                    "whiten={}, c={}".format(cgr_thresh, var, whiten, c)
+                                    "fitting svm for crop = {}, cgr_thresh = {}, "
+                                    "var={}, "
+                                    "whiten={}, c={}".format(
+                                        crop, cgr_thresh, var, whiten, c
+                                    )
                                 )
                                 svm = SVC(C=c, kernel="rbf", gamma="scale")
                                 svm.fit(X_train, y_train)
@@ -172,8 +182,7 @@ def main():
                             "val_acc",
                         )
 
-                        # log results for run TODO this could probably be wrapped
-                        #  into a deepspparks function
+                        # log results for run
                         df = pd.DataFrame(data=results, columns=results_header)
                         results_path = artifact / "results.csv"
                         df.to_csv(results_path, index_label="index")
@@ -238,8 +247,6 @@ def main():
                             }
                         )
 
-        # TODO figure out how to remove redundant code. propogate best figures and
-        #  best classification report? log results for all runs
         df_list = []
         print("logging final results for best model/parameters")
         for results, crop, whiten, cgr_thresh in results_all:
@@ -261,10 +268,8 @@ def main():
         # save model as mlflow model
         mlflow.sklearn.log_model(best_model_all, artifact_path="models/svm")
 
-        fname = artifact / "pca-{}.joblib".format(
-            (1 - best_whiten_all) * "no_" + "whiten"
-        )
-        pca = joblib.load(fname)
+        best_pca_path = pca_path(best_crop_all, best_whiten_all, True)
+        pca = mlflow.sklearn.load_model(best_pca_path)
         assert pca.whiten == bool(best_whiten_all)
         dataset = Dataset(params["mlflow"]["dataset_name"], best_crop_all, log=False)
         X_train = pca.transform(dataset.train["X"])[:, :best_n_components_all]

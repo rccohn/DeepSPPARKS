@@ -8,6 +8,8 @@ from deepspparks.visualize import agg_cm
 from data import Dataset
 from sklearn.metrics import confusion_matrix
 
+from run_paths import pca_path
+
 
 def main():
     param_file = "/root/inputs/params.yaml"
@@ -40,9 +42,9 @@ def main():
         parent_run_id = run.data.tags["mlflow.parentRunId"]
 
         # get correct pca model (either using whitening or without whitening)
-        pca_filename = "models/pca-{}whiten".format("no_" * (1 - whiten))
+        pca_uri = pca_path(crop, whiten, False, run_id=parent_run_id)
         pca = mlflow.sklearn.load_model(
-            "runs:/{}/{}".format(parent_run_id, pca_filename),
+            pca_uri,
             dst_path="/root/artifacts",
         )
 
