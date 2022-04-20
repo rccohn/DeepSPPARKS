@@ -35,7 +35,7 @@ def pca_path(
     """
     crop_str = "".join(("no_" * (1 - crop), "crop"))
     whiten_str = "".join(("no_" * (1 - whiten), "whiten"))
-    rel_path = "".join(("pca-", crop_str, whiten_str))
+    rel_path = "".join(("pca-", crop_str, "-", whiten_str))
     if local:
         base = local_path_base
     else:
