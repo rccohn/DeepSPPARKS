@@ -83,15 +83,15 @@ def main():
             mlflow.log_metric("{}-accuracy".format(label), acc)
 
         # log confusion matrices
-        artifact = Path("/", "root/", "artifacts/")
+        artifact = Path("/", "root", "artifacts/")
         savepath = artifact / "confusion_mats.npy"
         np.save(savepath, cmats, allow_pickle=False)
-        mlflow.log_artifact(str(savepath), artifact_path="/results")
+        mlflow.log_artifact(str(savepath), artifact_path="results/")
 
         # plot confusion matrices and save to mlflow
         agg_cm(
             cmats,
             return_figure=False,
             fpath=artifact / "confusion_matrices.png",
-            artifact_path="/results",
+            artifact_path="results/",
         )
