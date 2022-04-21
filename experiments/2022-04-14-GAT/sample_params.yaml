@@ -1,0 +1,51 @@
+# sample parameters
+
+mlflow: # relevant mlflow parameters
+  # path to this project's directory
+  project_uri: git@github.com:rccohn/DeepSpparks.git#experiments/2022-04-14-GAT
+  project_version: main
+  experiment_name: TEST # tracking experiment name
+
+dataset:
+  name: candidate-grains-repeat20-toy-lmd-v1.0.0  # path relative to dataset root
+
+  subgraph_radius: 4  # number of neighborhood shells of candidate grain to include in graph
+  # how cgr values from multiple runs are combined into single output for classification
+  # for datasets with a single run, using values like 'mean', 'max', etc will return the original value
+  repeat_aggregator: mean
+
+  # recompute features/targets, even if existing processed data is found
+  force_process: False
+
+
+encoder:
+  mode: test # "pca" or "autoencoder" or "test"
+  # uri to pca or autoencoder model for node and edge features (not needed if mode == "test")
+  node_feature_model_uri: ~
+  edge_feature_model_uri: ~
+  # number of pca components for node and edge features, only needed if mode == "pca"
+  node_n_components: 50
+  edge_n_components: 50
+
+
+entry: main  # if set to "eval", will run "evaluation.py.main()" instead of "sgc_combined.py.main()"
+
+
+
+# cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
+cgr_thresh: [6, 8] #[6, 8, 10, 12, 14]
+
+# settings for Adam
+optimizer:
+  lr: [0.005, 0.01] #[0.001, 0.005, 0.01] # learning rate
+  decay: [0.0005, 0.01] #[0.001, 0.0005, 0.0001] # adam weight decay
+
+# for nn training
+training:
+  max_iter: 50
+  checkpoint_iter: 10 # model weights/metrics saved at each checkpoint
+
+
+
+# run id of best performing run to generate confusion matrices from
+eval_run_id: null

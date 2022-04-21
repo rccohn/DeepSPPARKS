@@ -4,10 +4,9 @@ import mlflow
 import numpy as np
 from pathlib import Path
 from deepspparks.utils import load_params
-from deepspparks.visualize import agg_cm
 from data import Dataset
 from sklearn.metrics import confusion_matrix
-
+from deepspparks.visualize import agg_cm
 from run_paths import pca_path
 
 
@@ -87,13 +86,12 @@ def main():
         artifact = Path("/", "root/", "artifacts/")
         savepath = artifact / "confusion_mats.npy"
         np.save(savepath, cmats, allow_pickle=False)
-        mlflow.log_artifact(str(savepath), artifact_path="results/")
+        mlflow.log_artifact(str(savepath), artifact_path="/")
 
         # plot confusion matrices and save to mlflow
-        # TODO modify agg_cm to save raw values for cm (at least optionally?)
         agg_cm(
             cmats,
             return_figure=False,
             fpath=artifact / "confusion_matrices.png",
-            artifact_path="results/",
+            artifact_path="/",
         )
