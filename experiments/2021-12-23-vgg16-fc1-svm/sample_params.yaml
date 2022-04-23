@@ -9,12 +9,15 @@ mlflow: # relevant mlflow parameters
 # if set to 'eval', will run 'evaluation.py.main()' for scoring model
 entry: main
 
+crop_dataset: [0, 1]  # crop images to 'zoom in' on candidate grain
+
 # cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
 cgr_thresh: [8, 10] # [6, 8, 10, 12, 14]
 
 # percent of variance to be preserved by PCA
 pca_var: [25, 80] # [25, 50, 60, 65, 70, 75, 80, 90, 100]
 
+pca_whiten: [0, 1] # apply whitening transformation to pca components
 
 # range and number of values of c (log-spaced)
 # min_c and max_c are powers of 10

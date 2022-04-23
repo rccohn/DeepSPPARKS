@@ -40,7 +40,7 @@ def main():
         # store results from all child run in parent run for convenience
         results_all = []
 
-        for crop in range(2):
+        for crop in params["crop_dataset"]:
 
             # both crop and uncropped datasets are used
             # so we set log=False and remember to log parameters in child runs
@@ -52,7 +52,7 @@ def main():
                 force=params["force_process_dataset"],
             )
             X_train_raw = dataset.train["X"]
-            for whiten in range(2):
+            for whiten in params["pca_whiten"]:
 
                 # fit pca once, and use subsets of data for individual experiments
 
