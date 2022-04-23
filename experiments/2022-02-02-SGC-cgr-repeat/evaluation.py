@@ -123,8 +123,8 @@ def main():
             agg_cm(
                 cmats,
                 return_figure=False,
-                fpath=artifact / "confusion_matrices.png",
-                artifact_path="best_model/",
+                fpath=artifact / "confusion_mats.png",
+                artifact_path="acc-vs-k/k={}".format(model.k),
             )
 
         # plot accs vs k
