@@ -40,7 +40,7 @@ def main():
         # store results from all child run in parent run for convenience
         results_all = []
 
-        for crop in params["crop_dataset"]:
+        for crop in params["crop_images"]:
 
             # both crop and uncropped datasets are used
             # so we set log=False and remember to log parameters in child runs

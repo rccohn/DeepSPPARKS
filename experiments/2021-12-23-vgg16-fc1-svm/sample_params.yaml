@@ -9,7 +9,7 @@ mlflow: # relevant mlflow parameters
 # if set to 'eval', will run 'evaluation.py.main()' for scoring model
 entry: main
 
-crop_dataset: [0, 1]  # crop images to 'zoom in' on candidate grain
+crop_images: [0, 1]  # crop images to 'zoom in' on candidate grain
 
 # cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
 cgr_thresh: [8, 10] # [6, 8, 10, 12, 14]
