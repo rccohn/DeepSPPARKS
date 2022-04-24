@@ -26,6 +26,8 @@ encoder:
   # number of pca components for node and edge features, only needed if mode == "pca"
   node_n_components: 50
   edge_n_components: 50
+  # indices to extract node patches from
+  node_patch_bounds: [80, 80, 176, 176]
 
 
 entry: main  # if set to "eval", will run "evaluation.py.main()" instead of "sgc_combined.py.main()"

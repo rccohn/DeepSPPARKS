@@ -201,7 +201,7 @@ def batch_mse_loss(model, dataloader, device="cpu"):
     model = model.to(torch.float).to(device)
     mean_loss = 0.0
     total_samples = 0
-    loss_fn = nn.MSELoss(reduction="mean")
+    loss_fn = nn.MSELoss(reduction="sum")
     for batch in dataloader:
         batch = batch.float().to(device)
         yp = model.predict(batch)

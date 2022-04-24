@@ -14,7 +14,7 @@ def main():
         dataset = Dataset(params)
         dataset.process(force=params["dataset"]["force_process"])
 
-        print("done!")
+        # need optimizer, loss,
 
 
 if __name__ == "__main__":

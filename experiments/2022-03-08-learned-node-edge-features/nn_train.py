@@ -30,7 +30,7 @@ def train_step(model: Module, batch: Tensor, optimizer: Optimizer) -> None:
 def train_loop(
     model: Module,
     data: Dataset,
-    params,
+    params: dict,
     artifact_root: Union[str, Path] = "/root/artifacts",
 ) -> Tuple[dict, dict]:
     """

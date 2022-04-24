@@ -7,6 +7,7 @@ from dirhash import dirhash
 from shutil import rmtree
 from typing import Union
 from torch import flatten, Tensor
+import torch.cuda
 
 from torch_geometric.data import Data, Dataset
 
@@ -34,7 +35,7 @@ class DatasetBackend(Dataset):
         return self.n
 
     def get(self, i):
-        return torch.load("{:04d}.pt")
+        return torch.load(self.root / ("{:04d}.pt".format(i)))
 
 
 class Dataset:
@@ -63,6 +64,9 @@ class Dataset:
             only needed if mode == "pca", number of components to use
         "subgraph_radius": int = 4,
             number of neighborhood shells of candidate grain to include in graph
+        node_patch_bounds: list[int, int, int int]
+            min_row, min_col, max_row, max_c for extracting node patches
+            see argument 'bounds' from deepspparks.image.extract_node_patch()
         """
 
         self.dataset_name = params["dataset"]["name"]
@@ -70,7 +74,7 @@ class Dataset:
         self.node_feature_model_uri = params["encoder"]["node_feature_model_uri"]
         self.edge_feature_model_uri = params["encoder"]["edge_feature_model_uri"]
         self.target_name = "candidate_growth_ratio_repeats"
-
+        self.node_patch_bounds = params["encoder"]["node_patch_bounds"]
         self.node_n_components = params["encoder"]["node_n_components"]
         self.edge_n_components = params["encoder"]["edge_n_components"]
         self.subgraph_radius = params["dataset"]["subgraph_radius"]
@@ -87,6 +91,7 @@ class Dataset:
                 processed_root,
                 self.dataset_name,
                 self.node_feature_model_uri.replace("://", "__").replace("/", "_"),
+                "-".join([str(x) for x in self.node_patch_bounds]),
                 "{}-components".format(self.node_n_components)
                 if self.mode == "pca"
                 else "",
@@ -106,6 +111,9 @@ class Dataset:
 
         self.subset_labels = ("train", "val", "test")
 
+        # only enable gpu for  autoencoders (cannot be used by pca or test)
+        self.device = params["device"] if self.mode == "autoencoder" else "cpu"
+
         if log:
             self._log()
 
@@ -118,6 +126,7 @@ class Dataset:
                 "targets": self.target_name,
             }
         )
+        mlflow.log_params({"node_patch_bounds": str(self.node_patch_bounds)})
 
     def load(self) -> bool:
         """
@@ -185,10 +194,10 @@ class Dataset:
             # for testing only --> "encoder" returns the input
             # flattened for dimensional compatibility
             def node_encode(x: Tensor):
-                return flatten(x, start_dim=1)
+                return flatten(x, start_dim=0)
 
             def edge_encode(x: Tensor):
-                return flatten(x, start_dim=1)
+                return flatten(x, start_dim=0)
 
         else:
             raise ValueError('mode must be "pca" or "autoencoder"!')
@@ -223,7 +232,15 @@ class Dataset:
                 for idx, node in enumerate(sg.nodelist):
                     node_features.append(
                         node_encode(
-                            torch.DoubleTensor(node_patch_to_image(sg.node_patch(idx)))
+                            # TODO on repeated dataset, default bounds on node_patch()
+                            #     do not extract center of image. Update node patch
+                            #     to do this (will also need to rename processed data
+                            #     in learned_features dataset)
+                            torch.DoubleTensor(
+                                node_patch_to_image(
+                                    sg.node_patch(idx, self.node_patch_bounds)
+                                )
+                            )
                         )
                     )
                     # aggregate targets and store y values
