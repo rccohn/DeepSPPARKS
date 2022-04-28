@@ -139,7 +139,7 @@ def batch_nll_loss(model: Module, dataloader: DataLoader, device: str = "cpu"):
         yp = model(batch)
         loss = float(nll_loss(yp, labels, reduction="mean").detach())
         m = len(labels)
-        mean_loss += (loss - (m * mean_loss)) / (total_samples + m)
+        mean_loss += (loss - mean_loss) / ((total_samples / m) + 1)
         total_samples += m
 
     return mean_loss
