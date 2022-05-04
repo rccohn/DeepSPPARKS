@@ -68,7 +68,7 @@ services:
     volumes:
      - type: bind
        source: ${HOST_MOUNT_JUPYTER}
-       target: /home/root/host-files
+       target: /home/deepspparks/volumes/host-files
      # needed for accessing gcp resources if you are running container 
      # outside of gcp
      - type: bind

@@ -1,7 +1,7 @@
 To use mlflow with sftp server artifact backend with docker, client needs to be able to connect with "ssh host" (ie without any password or interactive input.)
 Before running mlflow, make sure you can connect to the server manually! Then you can copy your own ssh keys/known_hosts file. Update the config file here to point to the correct server (hostname, user) and keys. 
 
-ssh keys can be generated with $ssh-keygen. This generates both the public and private keys.
+ssh keys can be generated with $ ssh-keygen. This generates both the public and private keys.
 The public key needs to be added to ~/.ssh/authorized_keys on the server.
 
 known_hosts can be copied from ~/.ssh/known_hosts on YOUR machine. If you have logged into the server before manually, the host key should be in this file.
@@ -14,14 +14,19 @@ The following files need to be mounted to the container:
 .ssh/sftp_key - private key
 .ssh/sftp_key.pub - public key
 .ssh/known_hosts - known_hosts with server key already included*
-*(known_hosts may not be needed if host key checking is disabled, but I'm leaving it in)
+*(known_hosts may not be needed if host key checking is disabled (see ref [1]), but it is included for reference)
+
 
 NOTE: If you just copy the files, docker will not have the right ownership/permission to use them to connect. To avoid errors, run the following (you may need to run with sudo priviledges)
-$chmod 600 config
-$chmod 600 sftp_key
-$chown root config
-$chown root sftp_key
+$ chown -R 1000:1000 container_ssh # docker user has UID 1000, GID 1000
+$ chmod 700 container_ssh
+$ chmod 600 container_ssh/config
+$ chmod 600 container_ssh/sftp_key # private key should only be accessible by user
+$ chmod 644 container_ssh/sftp_key.pub  # public key should be able to be read by others
+
+more info on refs [2, 3] below
 
 Relevant refs:
-https://www.shellhacks.com/disable-ssh-host-key-checking/
-https://serverfault.com/questions/253313/ssh-returns-bad-owner-or-permissions-on-ssh-config
+[1] https://www.shellhacks.com/disable-ssh-host-key-checking/
+[2] https://www.frankindev.com/2020/11/26/permissions-for-.ssh-folder-and-key-files/
+[3] https://serverfault.com/questions/253313/ssh-returns-bad-owner-or-permissions-on-ssh-config

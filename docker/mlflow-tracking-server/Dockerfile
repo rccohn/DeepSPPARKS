@@ -34,3 +34,5 @@ COPY --chown=${USER}:${USER} requirements.txt requirements.txt
 RUN python3 -m venv ${VENV} && pip install --upgrade pip \
     && pip install -r requirements.txt \
     && rm requirements.txt
+
+RUN mkdir ${HOME}/.ssh

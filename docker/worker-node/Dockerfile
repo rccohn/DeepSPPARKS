@@ -33,8 +33,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Note that their 'recommended' approach does not seem to work in Docker (runs into dpkg issues)
 # but their "not recommended" approach for manually installing the key works...
 
-RUN apt-key del "7fa2af80"
-RUN apt-key adv --fetch-keys "https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/3bf863cc.pub"
+RUN apt-key del "7fa2af80" \
+    && apt-key adv --fetch-keys "https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/3bf863cc.pub"
 
 # System updates and configurations
 RUN apt-get update && apt-get -y --no-install-recommends install \
@@ -62,7 +62,8 @@ RUN groupadd --gid=${USER_GID} ${USER} \
 
 USER ${USER}
 
-ENV HOME=/home/${USER}
+# explicitely define ${HOME}
+ENV HOME=/home/${USER} 
 
 # Install Miniconda
 WORKDIR ${HOME}
@@ -121,8 +122,8 @@ RUN mkdir -p ${HOME}/temp/artifacts # temp storage for mlflow artifacts
 FROM base AS build2
 
 # install jupyter
-COPY requirements-dex.txt requirements.txt \
-     && conda run -n env python -m pip install -r requirements.txt \
+COPY --chown=${USER}:${USER} requirements-dex.txt requirements.txt
+RUN  conda run -n env python -m pip install -r requirements.txt \
      && rm requirements.txt
 
 # default settings for jupyter (dark theme, show line numbers, folding, etc)
@@ -130,8 +131,7 @@ COPY requirements-dex.txt requirements.txt \
 COPY --chown=${USER}:${USER} user-settings-jupyter ${HOME}/.jupyter/lab/user-settings
 
 # create empty directory to mount local files
-RUN mkdir -p ${HOME}/jupyter-home/volumes/host-files \
-    && mkdir ${HOME}/jupyter-home/temp
+RUN mkdir -p ${HOME}/jupyter-home/volumes/host-files
 
 # start in ~/jupyter to include temp dir, so 
 # scratch notebooks/temp files can be made instead of

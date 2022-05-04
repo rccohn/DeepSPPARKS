@@ -1,8 +1,5 @@
-rccohn/mlflow-tracking-server-1.21.0:latest
-
 Container for running mlflow tracking server. 
 IMPORTANT: mlflow version MUST be the same as the mlflow version on client machine, otherwise you get VERY difficult to debug server errors when trying to log parameters/metrics/artifacts.
 
-Container contains mlflow, postgres/sqlalchemy engines, google-cloud, and boto3 (aws) for tracking, supporting postgresql tracking db backend, and google/amazon storage bucket artifact storage locations.
-
+Container contains mlflow, postgres/sqlalchemy engines, google-cloud, and boto3 (aws) for tracking, supporting postgresql tracking db backend, and google/amazon/sftp artifact storage locations.
 

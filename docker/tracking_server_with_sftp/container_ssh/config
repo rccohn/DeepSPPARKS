@@ -5,7 +5,7 @@ HOST localhost
 	HostName localhost
 	Port 22
 	user root
-	IdentityFile /root/.ssh/id_rsa
+	IdentityFile ~/.ssh/id_rsa
 	IdentitiesOnly yes
 	StrictHostKeyChecking no
 	UserKnownHostsFile=/dev/null

@@ -6,12 +6,12 @@ from typing import Tuple
 class GatClassificationV1(nn.module):
     def __init__(
         self,
-        node_feat: int,
-        edge_attr: int,
-        heads: Tuple[int, int, int],
+        node_feat: int,  # dimensions of node feature vector
+        edge_dim: int,  # dimensions of edge feature vector
+        heads: Tuple[int, int, int],  # self attention heads for layers 1, 2, 3
         dropout1: float = 0.5,  # dropout used inside GATConv
         dropout2: float = 0.5,  # dropout used between conv layers
-        num_classes: int = 2,
+        num_classes: int = 2,  # normal, abnormal growth
     ):
         super().__init__()
 
@@ -30,7 +30,7 @@ class GatClassificationV1(nn.module):
             concat=True,
             heads=heads[0],
             dropout=self.dropout1,
-            edge_attr=edge_attr,
+            edge_dim=edge_dim,
         )
 
         self.conv2 = GATConv(
@@ -39,7 +39,7 @@ class GatClassificationV1(nn.module):
             concat=False,
             heads=heads[1],
             dropout=self.dropout1,
-            edge_attr=None,
+            edge_dim=None,
         )
 
         self.conv3 = GATConv(
@@ -48,7 +48,7 @@ class GatClassificationV1(nn.module):
             concat=False,
             heads=heads[2],
             dropout=dropout1,
-            edge_attr=None,
+            edge_dim=None,
         )
 
     def forward(self, data):
