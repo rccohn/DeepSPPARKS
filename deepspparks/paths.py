@@ -1,27 +1,27 @@
 from pathlib import Path
-import numpy
+import os
 
-numpy.pi
+assert os.environ.get("HOME") is not None, "$HOME is not set!"
 
-# read-only docker mount for inputs to experiment
-# usually this is the params.yaml file
-INPUT_PATH = Path("/", "root", "inputs")
+_HOME = Path(os.environ["HOME"])  # convert $HOME to Path object
+_VOL = _HOME / "volumes"  # datasets/inputs mounted here
 
-# params.yaml from which all parameters are read
+# read-only docker mount for inputs to experiment. Usually
+# this is the params.yaml file, but can include others as well.
+INPUT_PATH = _VOL / "inputs"
+
+# params.yaml from which all parameters are read.
 PARAM_PATH = INPUT_PATH / "params.yaml"
+
+# read-only path to mounted directory containing raw datasets
+RAW_DATA_ROOT = _VOL / "datasets"
+
+# read-write path to mounted directory containing processed data used by experiments
+# processed data is written to host so that it can be reused on subsequent experiments
+PROCESSED_DATA_ROOT = _VOL / "processed"
 
 # path inside docker container (ie not mounted from host)
 # save artifacts here before logging to mlflow server
 # note that as this path is not mounted, all files stored here are removed
 # when container is deleted .
-ARTIFACT_PATH = Path("/", "root", "artifacts")
-
-# parent directory that contains all data (raw and processed)
-DATA_ROOT = Path("/", "root", "data")
-
-# read-only path to mounted directory containing raw datasets
-RAW_DATA_ROOT = DATA_ROOT / "datasets"
-
-# read-write path to mounted directory containing processed data used by experiments
-# processed data is written to host so that it can be reused on subsequent experiments
-PROCESSED_DATA_ROOT = DATA_ROOT / "processed"
+ARTIFACT_PATH = _HOME / "temp" / "artifacts"

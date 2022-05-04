@@ -1,6 +1,23 @@
-FROM nvidia/cuda:11.1.1-base-ubuntu18.04 AS base
+# OS and architecture, needed for base images and nvidia key rotation
+ARG dist_os=ubuntu # operating system
+ARG version_major=18 # version major
+ARG version_minor=04 # version minor
+ARG arch=x86_64 # architecture
+ARG distro=${dist_os}${version_major}${version_minor}
 
-# Set the default shell
+# docker CUDA version differs from cuda used in torch --> this is ok as cudatoolkit is 
+# a dependency of pytorch. Using latest docker container gives better security.
+FROM nvidia/cuda:11.6.0-base-${dist_os}${version_major}.${version_minor} AS base
+# build arguments: non-root user
+ARG USER=deepspparks
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
+# need to re-declare these args or else they will disappear (new build stage)
+ARG distro
+ARG arch
+
+# Set the default shell for RUN commands
 SHELL ["/bin/bash", "-c"]
 
 # Set character encoding environment variables
@@ -9,33 +26,56 @@ ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 # Allow apt-get install without interaction from console
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set the working directory to /home
-WORKDIR /home/
+# nvidia key rotation (security update, needs to be applied or else 
+# apt-get update will not work) 
+# for more information see:
+# https://developer.nvidia.com/blog/updating-the-cuda-linux-gpg-repository-key/
+# Note that their 'recommended' approach does not seem to work in Docker (runs into dpkg issues)
+# but their "not recommended" approach for manually installing the key works...
+
+RUN apt-key del "7fa2af80"
+RUN apt-key adv --fetch-keys "https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/3bf863cc.pub"
 
 # System updates and configurations
 RUN apt-get update && apt-get -y --no-install-recommends install \
 		ca-certificates \
-		git \
 		ssh \
 		wget \ 
-		build-essential && \
-	apt-get clean && \
-	apt-get autoremove && \
-	rm -rf /var/lib/apt/lists/*
+		build-essential \
+		netcat \
+		iputils-ping \
+		iptables \
+	&& apt-get clean \
+	&& apt-get autoremove \
+	&& rm -rf /var/lib/apt/lists/* # clear package lists to avoid unecessary storage
 
-# Get network debugging tools
-RUN apt update && apt-get -y install netcat iputils-ping iptables
+# user name and UID
+# make available during runtime, not only when building container
+ENV USER=${USER} \
+    USER_UID=${USER_UID} \
+    USER_GID=${USER_GID}
+
+# ad non-root user
+# more info here: https://code.visualstudio.com/remote/advancedcontainers/add-nonroot-user
+RUN groupadd --gid=${USER_GID} ${USER} \
+    && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USER}
+
+USER ${USER}
+
+ENV HOME=/home/${USER}
 
 # Install Miniconda
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-	bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda && \
-	rm Miniconda3-latest-Linux-x86_64.sh
+WORKDIR ${HOME}
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+    && bash Miniconda3-latest-Linux-x86_64.sh -b -p ${HOME}/miniconda/ \
+	&& rm Miniconda3-latest-Linux-x86_64.sh
 
-# Set the path env to inclcude miniconda
-ENV PATH /root/miniconda/bin:$PATH
+# Set the path env to inclcude conda command
+ENV PATH=${HOME}/miniconda/condabin:${PATH}
 
 # copy env files to root
-COPY env.yml env.yml
+COPY --chown=${USER}:${USER} env.yml env.yml
+
 
 # Install venv
 # env.yml specifies environment name as "env"
@@ -45,39 +85,35 @@ COPY env.yml env.yml
 #      RUN pip install command will be MUCH faster
 #      than altering env.yml as Docker can use the 
 #      existing layers for these larger libraries.
-RUN conda env create --file env.yml
-# Set conda environment as default pyhton environment (ie no need to source activate)
-ENV PATH="/root/miniconda/envs/env/bin:${PATH}"
+RUN conda env create --file env.yml && rm env.yml
 
-# There's some weird dependency issue with pycocotools and tensorflow
-# installing numpy==1.19.5 causes some issue with pycocotools.mask.encode (invalid C char)
-# installing numpy==1.21.4 causes issue with tensorflow (Pip failed: The conflict is caused by: The user requested numpy==1.21.4
-#    tensorflow 2.5.0 depends on numpy~=1.19.2)
-# HOWEVER... installing numpy==1.19.5 and then manually pip install --upgrade numpy==1.21.4 appears to work for some reason...
-# thus we apply the workaround here
-RUN pip install --upgrade numpy==1.21.4
-
-# Copy sppark2graph code and install
-COPY deepspparks deepspparks
-COPY setup.py .
+# Copy deepspparks library and install (note this does not include dockerfiles or experiments,
+# which should be managed outside of the container (ie mlflow run)
+COPY --chown=${USER}:${USER} deepspparks deepspparks
+COPY --chown=${USER}:${USER} setup.py .
 
 # currently -e flag is needed to install correctly
-RUN pip install -e .
+# TODO eventually install via wheel and remove source
+RUN conda run -n env pip install -e .
+
+# Set default python binary environment created above (ie no need to source activate)
+# NOTE this works for most cases, but can break if environment activation includes setting
+# environment variables or other non-python items. 
+# A workaround is to use "conda run -n env <command>"
+# for more info see: https://pythonspeed.com/articles/activate-conda-dockerfile/
+ENV PATH=${HOME}/miniconda/envs/env/bin:${PATH}
+
+
 # build for running worker nodes
 # makes directories for ssh, inputs, datasets, artifacts, etc
 # used to run mlflow experiments
-
-# upgrade mlflow --> eventually this should be incorporated into env file
-# but this would require an entire rebuild. This is much faster for machines
-# that already have previous container built.
-
 FROM base AS build1
+
 # make directories that experiments will use
-RUN mkdir /root/.ssh # for ssh files (mount as read only, only if sftp artifact store used)
-RUN mkdir -p /root/data/datasets  # raw data (mount as read only)
-RUN mkdir /root/data/processed  # processed dat (mount as read-write)
-RUN mkdir /root/inputs  # for params.yaml and other input files
-RUN mkdir /root/artifacts # temp storage for mlflow artifacts
+RUN mkdir -p ${HOME}/volumes/datasets # raw data (mount as read only)
+RUN mkdir ${HOME}/volumes/processed-data  # processed dat (mount as read-write)
+RUN mkdir ${HOME}/volumes/inputs  # for params.yaml and other input files
+RUN mkdir -p ${HOME}/temp/artifacts # temp storage for mlflow artifacts
 
 # for data exploration and analysis
 # note that container should be run with --init 
@@ -85,18 +121,21 @@ RUN mkdir /root/artifacts # temp storage for mlflow artifacts
 FROM base AS build2
 
 # install jupyter
-COPY requirements-dex.txt requirements.txt
-RUN python -m pip install -r requirements.txt
+COPY requirements-dex.txt requirements.txt \
+     && conda run -n env python -m pip install -r requirements.txt \
+     && rm requirements.txt
 
 # default settings for jupyter (dark theme, show line numbers, folding, etc)
-COPY user-settings-jupyter /root/.jupyter/lab/user-settings
 
+COPY --chown=${USER}:${USER} user-settings-jupyter ${HOME}/.jupyter/lab/user-settings
 
-WORKDIR /home/root
 # create empty directory to mount local files
-RUN mkdir /home/root/host-files
+RUN mkdir -p ${HOME}/jupyter-home/volumes/host-files \
+    && mkdir ${HOME}/jupyter-home/temp
+
+# start in ~/jupyter to include temp dir, so 
+# scratch notebooks/temp files can be made instead of
+# writing all files to host
+WORKDIR ${HOME}/jupyter-home
 # sample command for starting jupyter
-COPY start_jupyter.sh .
-
-
-
+COPY --chown=${USER}:${USER} start_jupyter.sh .
