@@ -7,7 +7,7 @@
 # try running python with "conda run -n env python <args>"
 python -m jupyterlab `# start jupyter` \
 	--no-browser `# browser cannot run inside container, access from host`\
-        --ip localhost `#host ip` \
+        --ip 0.0.0.0 `#host ip` \
         --port ${JUPYTER_PORT_HOST} `# port ` \
 	--NotebookApp.token='' `# disable token (local container -> no security threat)`\
 	--NotebookApp.password='' `# disable password (local container -> no security threat)` \
