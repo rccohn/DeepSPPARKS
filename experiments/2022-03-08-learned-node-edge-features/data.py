@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import Dataset as TorchDataset
 from patch_compression import recover_node_patch, recover_edge_patch
 from typing import Union, Callable, Optional
+from deepspparks.paths import RAW_DATA_ROOT
 
 
 class DatasetBackend(TorchDataset):
@@ -113,7 +114,7 @@ class Dataset:
         self,
         name: str,
         which: str,
-        raw_root: Union[str, os.PathLike] = "/root/data/datasets",
+        raw_root: Union[str, os.PathLike] = RAW_DATA_ROOT,
         mapper: Optional[dict] = None,
         device: Optional[str] = None,
         log: bool = True,

@@ -11,6 +11,7 @@ import mlflow
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
+from deepspparks.paths import ARTIFACT_PATH
 
 
 def train_step(model: Module, batch: Tensor, optimizer: Optimizer) -> None:
@@ -31,7 +32,7 @@ def train_loop(
     model: Module,
     data: Dataset,
     params: dict,
-    artifact_root: Union[str, Path] = "/root/artifacts",
+    artifact_root: Union[str, Path] = ARTIFACT_PATH,
 ) -> Tuple[dict, dict]:
     """
     todo docstring

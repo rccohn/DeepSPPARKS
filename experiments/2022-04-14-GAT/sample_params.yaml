@@ -32,7 +32,11 @@ encoder:
 
 entry: main  # if set to "eval", will run "evaluation.py.main()" instead of "sgc_combined.py.main()"
 
-
+# model params
+model:
+  dropout1: 0.5 # dropout in GATConv
+  dropout2: 0.5 # dropout between message passing layers
+  heads: [8, 4, 2] # number of self-attention heads on
 
 # cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
 cgr_thresh: [6, 8] #[6, 8, 10, 12, 14]
@@ -44,10 +48,19 @@ optimizer:
 
 # for nn training
 training:
-  max_iter: 50
-  checkpoint_iter: 10 # model weights/metrics saved at each checkpoint
+  max_epoch: 50
+  checkpoint_epoch: 10 # model weights/metrics saved at each checkpoint
 
+# dataloader (batch size)
+loader:
+  num_workers: 4
+  batch_size:
+    train: 3
+    val: 3
+    test: 3
 
 
 # run id of best performing run to generate confusion matrices from
 eval_run_id: null
+
+device: cpu # can be 'cpu' or 'cuda'

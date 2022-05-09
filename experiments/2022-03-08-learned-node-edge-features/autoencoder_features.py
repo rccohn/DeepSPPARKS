@@ -1,7 +1,7 @@
-from pathlib import Path
 from data import Dataset
 import os
 from shutil import rmtree
+from deepspparks.paths import ARTIFACT_PATH, PARAM_PATH, PROCESSED_DATA_ROOT
 from deepspparks.utils import load_params
 from deepspparks.visualize import scree_plot
 import matplotlib.pyplot as plt
@@ -50,15 +50,15 @@ def pca_train(params: dict, dataloader):
         model.partial_fit(batch)
 
     # record variance preserved per number of components
-    fpath = "/root/artifacts/pca_explained_var.npy"
-    assert Path(fpath).parent.exists()
+    fpath = ARTIFACT_PATH / "pca_explained_var.npy"
+    assert fpath.parent.exists()
     np.save(fpath, model.explained_variance_, allow_pickle=False)
 
-    mlflow.log_artifact(fpath, artifact_path="pca/")
-    figpath = "/root/artifacts/pca_scree.html"
+    mlflow.log_artifact(fpath, artifact_path="pca/{}".format(fpath.name))
+    figpath = ARTIFACT_PATH / "pca_scree.html"
     fig = scree_plot(model.explained_variance_ratio_)
     fig.write_html(figpath)
-    mlflow.log_artifact(figpath, artifact_path="pca/")
+    mlflow.log_artifact(figpath, artifact_path="pca/{}".format(figpath.name))
 
     # save pca model
     mlflow.sklearn.log_model(model, artifact_path="pca/pca_model")
@@ -100,14 +100,14 @@ def pca_evaluate(dataset, model, params):
         dfs.append(df_sub)
 
     df = pd.concat(dfs, ignore_index=True)
-    savepath = "/root/artifacts/results_df.csv"
+    savepath = ARTIFACT_PATH / "results_df.csv"
     df.to_csv(savepath)
-    mlflow.log_artifact(savepath, artifact_path="results/")
-    savepath = "/root/artifacts/results_df.html"
+    mlflow.log_artifact(savepath, artifact_path="results/{}".format(savepath.name))
+    savepath = ARTIFACT_PATH / "results_df.html"
     df.to_html(savepath)
-    mlflow.log_artifact(savepath, artifact_path="results/")
+    mlflow.log_artifact(savepath, artifact_path="results/{}".format(savepath.name))
 
-    figpath = "/root/artifacts/loss_vs_nc.html"
+    figpath = ARTIFACT_PATH / "loss_vs_nc.html"
     fig = px.line(
         data_frame=df,
         x="n_components",
@@ -118,8 +118,8 @@ def pca_evaluate(dataset, model, params):
     )
     fig.update_layout(hovermode="x unified", font={"size": 14})
     fig.write_html(figpath)
-    mlflow.log_artifact(figpath, artifact_path="results/")
-    figpath = "/root/artifacts/loss_vs_var.html"
+    mlflow.log_artifact(figpath, artifact_path="results/{}".format(figpath.name))
+    figpath = ARTIFACT_PATH / "loss_vs_var.html"
     fig = px.line(
         data_frame=df,
         x="var",
@@ -130,7 +130,7 @@ def pca_evaluate(dataset, model, params):
     )
     fig.update_layout(hovermode="x unified", font={"size": 14})
     fig.write_html(figpath)
-    mlflow.log_artifact(figpath, artifact_path="results/")
+    mlflow.log_artifact(figpath, artifact_path="results/{}".format(figpath.name))
 
 
 def autoencoder_train_and_evaluate(params: dict, dataset: Dataset):
@@ -152,7 +152,7 @@ def autoencoder_train_and_evaluate(params: dict, dataset: Dataset):
 
 
 def main():
-    param_file = "/root/inputs/params.yaml"
+    param_file = PARAM_PATH
     params = load_params(param_file)
     name = params["mlflow"]["dataset_name"]
     device = None if params["which"]["model"] != "pca" else "cpu"
@@ -253,16 +253,16 @@ def sample_performance(model, tv, data, idx, pca=False):
 
     # save figure and log as mlflow artifact under
     # run/sample_images/{train, val}/0...01.html
-    figpath = Path("/root/artifacts/{}/{:09}.html".format(tv, idx))
+    figpath = ARTIFACT_PATH / "{}/{:09}.html".format(tv, idx)
     if not figpath.parent.exists():
         os.makedirs(figpath.parent, exist_ok=True)
-    fig.write_html(str(figpath))
+    fig.write_html(figpath)
     if pca:
         artifact_path = "sample_images/{}-components/{}".format(model.n_components, tv)
     else:
         artifact_path = "sample_images/{}".format(tv)
 
-    mlflow.log_artifact(str(figpath), artifact_path=artifact_path)
+    mlflow.log_artifact(figpath, artifact_path=artifact_path)
 
     # auto-encoder is a very open ended problem
     # the main things we want to do are:
@@ -287,11 +287,11 @@ def sample_performance(model, tv, data, idx, pca=False):
 
 def test():
     # verify that data loader correctly works and patches are correctly displayed
-    param_file = "/root/inputs/params.yaml"
+    param_file = PARAM_PATH
     params = load_params(param_file)
     name = params["mlflow"]["dataset_name"]
 
-    out_root = Path("/root/data/processed/{}".format(name))
+    out_root = PROCESSED_DATA_ROOT / name
     for which in ("node", "edge"):
         ds = Dataset(name=name, which=which)
         ds.process()

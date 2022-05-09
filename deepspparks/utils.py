@@ -273,7 +273,7 @@ def aggregate_targets(data, aggregator, threshold=None):
         data_formatted.y = aggregator_fn(data_formatted.y)
 
         if threshold is not None:
-            data_formatted.y = (data_formatted.y >= threshold).long()
+            data_formatted.y = (data_formatted.y >= threshold).to(dtype=int)
 
     return data_formatted
 

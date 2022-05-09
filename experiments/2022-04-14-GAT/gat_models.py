@@ -3,7 +3,7 @@ from torch_geometric.nn import GATConv
 from typing import Tuple
 
 
-class GatClassificationV1(nn.module):
+class GatClassificationV1(nn.Module):
     def __init__(
         self,
         node_feat: int,  # dimensions of node feature vector
@@ -19,7 +19,7 @@ class GatClassificationV1(nn.module):
         self.dropout2 = dropout2
         self.dropout = nn.Dropout(p=self.dropout2)
         self.elu = nn.ELU()
-        self.log_softmax = nn.LogSoftmax()
+        self.log_softmax = nn.LogSoftmax(dim=1)
 
         self.out_layer_1 = 8
         self.out_layer_2 = 8
@@ -55,6 +55,7 @@ class GatClassificationV1(nn.module):
         x = self.dropout(data.x)
         x = self.conv1(data.x, data.edge_index, edge_attr=data.edge_attr)
         x = self.elu(x)
+        x = self.dropout(x)
         x = self.conv2(x, data.edge_index)
         x = self.dropout(x)
         x = self.conv3(x, data.edge_index)

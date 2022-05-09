@@ -10,12 +10,15 @@ from torch import flatten, Tensor
 import torch.cuda
 
 from torch_geometric.data import Data, Dataset
+from deepspparks.utils import aggregate_targets
 
 from pathlib import Path
 
 from deepspparks.graphs import Graph
 from deepspparks.image import node_patch_to_image, edge_patch_to_image
 from deepspparks.paths import RAW_DATA_ROOT, PROCESSED_DATA_ROOT
+
+from typing import Optional
 
 #  input a json graph
 #  output a torch_geometric data object/save to disk
@@ -26,16 +29,26 @@ from deepspparks.paths import RAW_DATA_ROOT, PROCESSED_DATA_ROOT
 
 
 class DatasetBackend(Dataset):
-    def __init__(self, root: Path, n: int):
+    def __init__(self, root: Path, n: int, parent: Dataset):
         super().__init__()
         self.root = root
         self.n = n
+        self.parent = parent
 
     def __len__(self):
         return self.n
 
-    def get(self, i):
-        return torch.load(self.root / ("{:04d}.pt".format(i)))
+    def __getitem__(self, i):
+        # TODO store repeat aggregator as dataset attribute,
+        #     apply the aggregator to item.y after loading?
+        data = torch.load(self.root / ("{:04d}.pt".format(i)))
+
+        data = aggregate_targets(
+            data=data,
+            aggregator=self.parent.aggregator,
+            threshold=self.parent.threshold,
+        )
+        return data
 
 
 class Dataset:
@@ -114,6 +127,10 @@ class Dataset:
         # only enable gpu for  autoencoders (cannot be used by pca or test)
         self.device = params["device"] if self.mode == "autoencoder" else "cpu"
 
+        # aggregator and threshold for aggregating targets
+        self.aggregator: Optional[str] = None
+        self.threshold: Optional[str] = None
+
         if log:
             self._log()
 
@@ -127,6 +144,17 @@ class Dataset:
             }
         )
         mlflow.log_params({"node_patch_bounds": str(self.node_patch_bounds)})
+
+    def set_threshold_and_aggregator(
+        self, threshold: float, aggregator: str, log: bool = True
+    ):
+        self.aggregator = aggregator
+        self.threshold = threshold
+
+        if log:
+            mlflow.log_params(
+                {"cgr_thresh": str(threshold), "repeat_aggregator": aggregator}
+            )
 
     def load(self) -> bool:
         """
@@ -281,7 +309,7 @@ class Dataset:
 
             file_info[subset]["n_files"] = len(files)
             file_info[subset]["md5"] = dirhash(subset_root, "md5")
-            dsb = DatasetBackend(subset_root, file_info[subset]["n_files"])
+            dsb = DatasetBackend(subset_root, file_info[subset]["n_files"], parent=self)
             self.__setattr__(subset, dsb)
 
         # store dataset size and hash of directory to ensure consistency
@@ -299,10 +327,11 @@ def pca_encode(model_uri, n_components):
 
     def encode_fn(x: torch.Tensor) -> torch.DoubleTensor:
         # tensor to numpy
+
         x = x.detach().cpu().numpy()
         # 4d list of (channel, row, col) images
         # to 2d data matrix
-        x = x.reshape(len(x), -1) - model.mean_
+        x = x.reshape(-1) - model.mean_
 
         # encode only using number of desired components
         x_encode = np.dot(x, model.components_[:n_components].T)

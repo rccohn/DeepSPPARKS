@@ -73,7 +73,7 @@ services:
      # outside of gcp
      - type: bind
        source: ${SERVICE_ACCOUNT_KEY}
-       target: /gcloud/credentials.json
+       target: /home/deepspparks/volumes/gcloud/credentials.json
        read_only: true
      
     
@@ -90,7 +90,7 @@ services:
           
     # needed for accessing gcp resources if you are running container
     # outside of gcp
-      - GOOGLE_APPLICATION_CREDENTIALS=/gcloud/credentials.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/home/deepspparks/volumes/gcloud/credentials.json
 
     # start jupyter server
     entrypoint:
