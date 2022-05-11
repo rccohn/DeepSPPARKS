@@ -1,0 +1,30 @@
+The default mlflow ui does not have any sort of pretection, making it unsafe to host on a vm exposed to the internet. A simple solution is to use a nginx reverse proxy to add a password protection layer.
+
+First, generate credential file:
+1) set USERNAME and PASSWORD environment variables
+2) $ docker run -e USERNAME -e PASSWORD --rm -it test-mlflow-htpasswd bash
+3) inside docker, run:
+   $ htpasswd -bc ~/htpasswd ${USERNAME} ${PASSWORD} \
+     && echo "credentials are: " && cat ~/htpasswd
+4) copy credentials (either copy from terminal or 
+     $ docker cp <container_id> /home/mlflow/htpasswd ${PWD}/htpasswd
+
+Then, start mlflow ui with password protection container:
+With credential file ${PWD}/htpasswd, run
+	$ docker-compose up -d
+TODO right now this just runs blank mlflow ui, update to include full connection
+
+Next, get the IP of the container.
+`$ docker ps` to list all containers, get CONTAINER ID of docker2_password-protected-ui image.
+Then, you can either do `docker inspect <container_id> | grep IPAddress and copy the value (should be something like 172.18.0.2. May have different digits, but should follow the same pattern)
+Alternatively you can run:
+$ docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' <container_id>
+
+Finally, to access the mlflow ui, go to http://<container_ip>.
+Note -> do NOT specify the port, this is what the reverse proxy is for!
+For a container running locally, http://localhost:<port> will NOT work, you will get an 
+error saying "this site can't be reached."
+
+TODO figure out IP to use on cloud. You might need to set up reverse proxy outside of docker, or deploy the container directly, but alas...
+
+
