@@ -5,10 +5,10 @@ docker_env:
   image: rccohn/deepspparks-worker:latest
 
   volumes:
-    - "${PARAM_FILE}:/root/inputs/params.yaml:ro" # params yaml file
-    - "${CONTAINER_SSH}:/root/.ssh:ro" # ~/.ssh (only needed for sftp artifact stores)
-    - "${RAW_DATA_ROOT}:/root/data/datasets:ro" # for dataset
-    - "${PROCESSED_DATA_ROOT}:/root/data/processed:rw"  # for processed data
+    - "${PARAM_FILE}:/home/deepspparks/volumes/inputs/params.yaml:ro" # params yaml file
+    - "${CONTAINER_SSH}:/home/deepspparks/.ssh:ro" # ~/.ssh (only needed for sftp artifact stores)
+    - "${RAW_DATA_ROOT}:/home/deepspparks/volumes/datasets:ro" # for dataset
+    - "${PROCESSED_DATA_ROOT}:/home/deepspparks/volumes/processed:rw"  # for processed data
 
 entry_points:
   main:

@@ -1,18 +1,20 @@
+import torch.cuda
+
 from data import Dataset
 import mlflow
 from sgc_model import SGCNet, train_loop
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from pathlib import Path
 from deepspparks.utils import load_params, aggregate_targets
 from deepspparks.visualize import agg_cm
 import itertools
 from sklearn.metrics import confusion_matrix
 from torch.optim import Adam
+from deepspparks.paths import PARAM_PATH, ARTIFACT_PATH
 
 
 def main():
-    param_file = "/root/inputs/params.yaml"
+    param_file = PARAM_PATH
     print("parsing params")
     params = load_params(param_file)  # parse experiment parameters
     if params.get("entry", "") == "eval":  # run evaluation instead of training
@@ -21,9 +23,7 @@ def main():
         evaluation.main()
         raise SystemExit
 
-    artifact = Path(
-        "/", "root", "artifacts"
-    )  # path to save artifacts before logging to mlflow artifact repository
+    artifact = ARTIFACT_PATH  # use 'artifact' to avoid breaking old code
 
     # when running with mlflow project, run_name is not actually used, since the
     # project generates a run ID associated with the project. Instead, we set the
@@ -111,6 +111,10 @@ def main():
         data_train = aggregate_targets(dtrain, params["repeat_aggregator"], thresh)
         data_val = aggregate_targets(dval, params["repeat_aggregator"], thresh)
         data_test = aggregate_targets(dtest, params["repeat_aggregator"], thresh)
+        if torch.cuda.is_available():
+            data_train = data_train.to("cuda")
+            data_val = data_val.to("cuda")
+            data_test = data_test.to("cuda")
 
         yp_train = model.predict(data_train, mask=data_train.candidate_mask)
         yp_val = model.predict(data_val, mask=data_val.candidate_mask)
@@ -121,7 +125,9 @@ def main():
         y_test = data_test.y[data_test.candidate_mask]
 
         cmlist = [
-            confusion_matrix(gt, pred, labels=[0, 1])
+            confusion_matrix(
+                gt.detach().cpu().numpy(), pred.detach().cpu().numpy(), labels=[0, 1]
+            )
             for gt, pred in zip((y_train, y_val, y_test), (yp_train, yp_val, yp_test))
         ]
         cm_path = artifact / "confusion_matrix.png"
