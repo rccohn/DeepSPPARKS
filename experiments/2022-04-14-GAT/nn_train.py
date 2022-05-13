@@ -108,7 +108,7 @@ def train_loop(
         mlflow.log_artifact(str(savepath.absolute()), "model_checkpoints")
         mlflow.log_metrics(
             {"fit_train_loss": tl, "fit_val_loss": vl},
-            step=train_epoch + checkpoint_epoch,
+            step=train_epoch,
         )
 
         scheduler.step(vl)
@@ -124,7 +124,7 @@ def train_loop(
                 "train_loss": tl,
                 "val_acc": va,
                 "val_loss": vl,
-                "best_epoch": train_epoch + checkpoint_epoch,
+                "best_epoch": train_epoch,
             }
             best_weights = model.state_dict()
 

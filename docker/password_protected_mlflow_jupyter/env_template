@@ -1,0 +1,24 @@
+# uri for tracking database
+# <dialect>+<driver>://<user>:<password>@<host>:<port>/<db_name>
+# note that special characters (like those for password) need to be
+# url escaped (python urllib parse quote)
+# host can be the docker-compose service name
+MLFLOW_BACKEND_URI='postgresql+psycopg2://postgres:<password>@host:5432/<db_name>'
+
+# where artifacts are stored
+MLFLOW_ARTIFACT_ROOT='gs://<bucket_name>/path/to/artifacts/'
+
+# gcp cloud sql instance connection to connect to
+INSTANCE_CONNECTION='<project>:<zone>:<name>'
+
+# home directory to open in jupyter
+CONTAINER_NOTEBOOK_DIR=/home/<user>/some/path
+
+# path to service account key
+SERVICE_ACCOUNT_KEY=/home/<user>/path/to/credentials_gcp.json
+
+# jupyter password file -> generated with jupyter notebook password
+JUPYTER_PASSWORD_FILE=/home/<user>/path/to/credentials_jupyter.json
+
+# nginx reverse proxy password generated with htpasswd
+HTPASSWD_FILE=/home/<user>/path/to/credentials_htpasswd

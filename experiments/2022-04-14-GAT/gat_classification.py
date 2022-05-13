@@ -31,6 +31,9 @@ def main():
                 "heads": params["model"]["heads"],
                 "dropout1": params["model"]["dropout1"],
                 "dropout2": params["model"]["dropout2"],
+                "encoder_mode": params["encoder"]["mode"],
+                "node_encoder_uri": params["encoder"].get("node_feature_model_uri"),
+                "edge_encoder_uri": params["encoder"].get("edge_feature_model_uri"),
             }
         )
 

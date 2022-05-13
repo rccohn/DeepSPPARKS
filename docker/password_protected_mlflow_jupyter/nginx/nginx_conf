@@ -1,0 +1,43 @@
+worker_processes 1;
+ 
+events { worker_connections 1024; }
+ 
+http {
+    
+    # don't send pointers, send files directly over network
+    sendfile on;
+    proxy_redirect off;
+        
+    # password restriction with apache-utils htpasswd
+    auth_basic "Restricted Content";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+    
+    # server in docker network to proxy to
+    upstream docker-mlflow {
+        server mlflow-ui:5000;
+    }
+    
+    # proxy mlflow on port 5000       
+    server {
+        listen 5000;
+        server_name nginx-mlflow;
+        location / {
+            proxy_pass           http://docker-mlflow;
+        }
+    }
+    
+}    
+
+# useful references:
+# password protecting mlflow 
+# towardsdatascience.com/managing-your-machine-learning-experiments-with-mlflow-1cd6ee21996e
+
+# proxying multiple endpoints on different locations 
+# gist.github.com/soheilhy/8b94347ff8336d971ad0
+
+# dockerized reverse proxy w/ compose 
+# bogotobogo.com/DevOps/Docker/Docker-Compose-Nginx-Reverse-Proxy-Multiple-Containers.php
+
+
+# jupyter behind nginx
+# hands-on.cloud/docker-how-to-setup-jupyter-behind-nginx-proxy/

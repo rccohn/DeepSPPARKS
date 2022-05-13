@@ -225,6 +225,8 @@ def aggregate_targets(data, aggregator, threshold=None):
         None: no aggregator is applied ex: [1, 2, 3, 4] -> [1, 2, 3, 4]
         'mean': average value ex: [1, 2, 3, 4] -> 2.5
         'std': sample standard deviation ex: [1, 2, 3, 4] -> 1.291
+        'min': sample min ex [1, 2, 3, 4] -> 1
+        'max': sample max ex [1, 2, 3, 4] -> 4
     Parameters
     ----------
     data: torch_geometric Data object
@@ -261,6 +263,8 @@ def aggregate_targets(data, aggregator, threshold=None):
     valid_aggregators = {
         "mean": lambda x: x.mean(1),
         "std": lambda x: x.std(1),
+        "min": lambda x: x.min(1),
+        "max": lambda x: x.max(1),
         "None": lambda x: x,
     }  # needed when aggregator is "None"
     # but threshold is not None

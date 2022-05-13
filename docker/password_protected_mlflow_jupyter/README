@@ -1,0 +1,2 @@
+--> copy env_template to .env and fill out values (paths must be absolute, not relative! incorrect paths can cause some containers to fail immediately upon start)
+--> make sure service account key, htpasswd file, and jupyter password file are accessible by user id 1000. IMPORTANT: If jupyter password.json credential file is not usable by UID 1000, it will simply not be used, and jupyter lab will be exposed to the internet with no password protection!

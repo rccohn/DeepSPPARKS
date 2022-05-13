@@ -1,0 +1,93 @@
+version: "3.8"
+services:
+  # reverse proxy for mlflow only
+  # jupyter has issues running with nginx proxy
+  nginx-proxy:
+    build: nginx/
+    # ensure mlflow-ui is started before proxy
+    # otherwise host names for proxy forwarding will not be available
+    # causing container to error out
+    depends_on: [mlflow-ui, ]
+    init: true
+    container_name: nginx_proxy
+    # mount htpasswd credential file to enable
+    # password authentication
+    volumes:
+      - type: "bind"
+        source: ${HTPASSWD_FILE}
+        target: /etc/nginx/.htpasswd
+        read_only: true
+    ports:
+      # other instances of mlflow may run on 5000
+      # so we map arbitrary port 8082 on host to 5000
+      - 8082:5000 
+  
+  # access mlflow user interface, not for tracking experiments!
+  mlflow-ui:
+    image: rccohn/mlflow-tracking-server-1.24.0:latest
+    # make sure connection to cloud sql starts before mlflow
+    # to avoid "error cannot connect to tracking db"
+    depends_on: [gcloud-sql-proxy]
+    init: true
+    # mount service account credential to container
+    # to allow access to artifacts stored on gcp
+    volumes:
+     - type: bind
+       source: ${SERVICE_ACCOUNT_KEY}
+       target: /config
+       read_only: true
+    # allows container to use config file mounted above
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/config
+    # run mlflow user interface
+    entrypoint:
+      - mlflow
+      - ui
+      - --host=0.0.0.0
+      - --port=5000
+      - --backend-store-uri=${MLFLOW_BACKEND_URI}
+      - --serve-artifacts
+      - --artifacts-destination=${MLFLOW_ARTIFACT_ROOT}
+      - --default-artifact-root=${MLFLOW_ARTIFACT_ROOT}
+  # jupyter server for data analysis
+  jupyterlab:
+    image: rccohn/deepspparks-worker:dex
+    init: true
+    # other jupyter instance may be running on 8888
+    # so we use arbitrary port 8090 on host instead
+    ports:
+      - 8090:8888
+    environment:
+      - CONTAINER_NOTEBOOK_DIR # directory to open jupyter in
+      - JUPYTER_PORT_HOST=8888 # port inside container
+    # allow jupyter to access host
+    volumes:
+      - type: bind
+        source: /
+        target: /home/deepspparks/volumes/host-files
+        # stores password --> container must have access
+        # and sufficient permission to use password,
+        # otherwise the notebook will start without any 
+        # password prompt!
+      - type: bind
+        source: ${JUPYTER_PASSWORD_FILE}
+        target: /home/deepspparks/.jupyter/jupyter_notebook_config.json
+        read_only: true
+
+    entrypoint: ["bash", "start_jupyter.sh"]
+  # connects mlflow ui container to tracking database
+  # hosted on gcp cloud sql
+  gcloud-sql-proxy:
+    image: gcr.io/cloudsql-docker/gce-proxy:1.27.1
+    # gcp service account credentials need to be mounted
+    # if container is run outside of gcp
+    volumes:
+      - type: bind
+        source: ${SERVICE_ACCOUNT_KEY}
+        target: /config
+        read_only: true
+    entrypoint: 
+      - /cloud_sql_proxy
+      - -enable_iam_login
+      - -credential_file=/config
+      - -instances=${INSTANCE_CONNECTION}=tcp:0.0.0.0:5432

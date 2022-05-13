@@ -10,6 +10,5 @@ python -m jupyterlab `# start jupyter` \
         --ip 0.0.0.0 `#host ip` \
         --port ${JUPYTER_PORT_HOST} `# port ` \
 	--NotebookApp.token='' `# disable token (local container -> no security threat)`\
-	--NotebookApp.password='' `# disable password (local container -> no security threat)` \
 	--notebook-dir ${HOME}/volumes/host-files/${CONTAINER_NOTEBOOK_DIR} `# location to start jupyter`
 
