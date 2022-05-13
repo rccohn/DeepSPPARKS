@@ -1,8 +1,12 @@
 # OS and architecture, needed for base images and nvidia key rotation
-ARG dist_os=ubuntu # operating system
-ARG version_major=18 # version major
-ARG version_minor=04 # version minor
-ARG arch=x86_64 # architecture
+# operating system
+ARG dist_os=ubuntu
+# version major
+ARG version_major=18
+# version minor
+ARG version_minor=04
+# architecture
+ARG arch=x86_64
 ARG distro=${dist_os}${version_major}${version_minor}
 
 # docker CUDA version differs from cuda used in torch --> this is ok as cudatoolkit is 

@@ -285,12 +285,17 @@ class Dataset:
                 for idx in sg.eli:
                     edge_index[0].append(idx[0])  # source node
                     edge_index[1].append(idx[1])  # target node
-                    edge_attr.append(
-                        edge_encode(
-                            torch.DoubleTensor(edge_patch_to_image(sg.edge_patch(idx)))
+                    try:
+                        edge_attr.append(
+                            edge_encode(
+                                torch.DoubleTensor(
+                                    edge_patch_to_image(sg.edge_patch(idx))
+                                )
+                            )
                         )
-                    )
-
+                    except Exception as e:
+                        print(f)
+                        raise e
                 # convert to torch-geometric data format
                 x = torch.stack(node_features)
                 edge_index = torch.LongTensor(edge_index)
