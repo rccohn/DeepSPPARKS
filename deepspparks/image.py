@@ -431,6 +431,7 @@ def extract_edge_patch(
     )
 
     # row, col coords of pixels on each grain on the boundary
+
     edge_coords_all = [
         [y[cbm3] + o for y, o in zip(w3, where_shift)],
         [y[cbm4] + o for y, o in zip(w4, where_shift)],
@@ -440,9 +441,13 @@ def extract_edge_patch(
     # exclude pixels that are outside the range of the final box
     # and would otherwise cause index errors.
 
-    edge_coords = [
-        [coords[coords < box_size] for coords in grain] for grain in edge_coords_all
-    ]
+    edge_coords = []
+    for rc in edge_coords_all:
+        # filter out pixels that are out of bounds (< 0, > box_size-1)
+        mask1 = np.logical_and(rc[0] < box_size, rc[1] < box_size)
+        mask2 = np.logical_and(rc[0] >= 0, rc[1] >= 0)
+        mask = np.logical_and(mask1, mask2)
+        edge_coords.append([coords[mask] for coords in rc])
 
     edge_patch = {
         "size": rle1["size"],

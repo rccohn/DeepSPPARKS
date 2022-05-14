@@ -626,7 +626,7 @@ class Graph(nx.DiGraph):
 
     def edge_patch(self, *args, **kwargs):
         """
-        Wraps deepspparks.image.extract_node_patch
+        Wraps deepspparks.image.extract_edge_patch
         """
         return extract_edge_patch(self, *args, **kwargs)
 
