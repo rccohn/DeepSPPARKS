@@ -237,7 +237,7 @@ def roll_shifts(img: np.ndarray, i: Optional[Union[int, float]] = None) -> Tuple
         img = img == i  # create binary mask
 
     # coords of all pixels in img, sorted to find any discontinuities
-    where = (np.sort(x) for x in np.where(img))
+    where = (np.unique(x) for x in np.where(img))
     shape = img.shape
 
     shifts = []  # shifts along each axis
@@ -326,6 +326,7 @@ def extract_edge_patch(
     # n1, n2: nodes in graph that rae connected by an edge
     # find union and roll it to the center of the image
     # get nodes from edge
+    assert e in g.edges, "edge {} not in graph!".format(e)
     n1, n2 = (g.nodes[n] for n in e)
 
     boundary_thickness = width  # TODO refactor
