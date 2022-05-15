@@ -82,6 +82,19 @@ def img_from_output(
 
 def roll_img(img, i):
     """
+    convenience function for centering a grain on the image
+
+    see roll_shifts() for more info
+    """
+    shifts = roll_shifts(img, i)
+    img = np.roll(img, shifts, axis=range(len(shifts)))
+    return img
+
+
+# TODO see if this can be removed without breaking anything
+#     (if current roll_img() works, then this can be removed)
+def roll_img_old(img, i):
+    """
     Roll image *img* such that grain *i* is approximately centered.
 
     This is needed to account for periodic boundary conditions, which may cause an
@@ -191,6 +204,8 @@ def edge_patch_to_image(
     return img
 
 
+# TODO update this to work with see test/new_roll_grain.ipynb --> edge case with
+#      disconnected grain causes problems when extracting edge patches
 def roll_shifts(img: np.ndarray, i: Optional[Union[int, float]] = None) -> Tuple[int]:
     """
     Compute shifts to pass to numpy.roll() to center an object in an image.
@@ -218,12 +233,46 @@ def roll_shifts(img: np.ndarray, i: Optional[Union[int, float]] = None) -> Tuple
 
     TODO example
     """
+    if i is not None:  # if None, img should already be a binary mask
+        img = img == i  # create binary mask
 
-    if i is not None:
-        img = img == i
-    # coords of all pixels in img
-    # sort so they are always exactly in order
+    # coords of all pixels in img, sorted to find any discontinuities
     where = (np.sort(x) for x in np.where(img))
+    shape = img.shape
+
+    shifts = []  # shifts along each axis
+    for w, s in zip(where, shape):
+        assert len(w), "no pixels in img!"
+
+        # left and right bounds of mask that is not wrapped around the edge
+        left, right = w[0], w[-1]
+
+        # if left == right, there is only 1 pixel --> must be continuous, not wrapped
+        if left != right:  # grain might be discontinuous/wrapped
+
+            delta = w[1:] - w[:-1]
+            am = np.argmax(delta)
+
+            # for continuous regions, delta will be 1 everywhere
+            if delta[am] > 1:  # grain is wrapped and/or discontinuous
+                # test to see if grain is wrapped around edge
+
+                # in wrapped grain, right half of grain extends past image boundary
+                left_wrap = am + delta[am]
+                right_wrap = s + am
+
+                # test to see if wrapped or unwrapped grain has a larger width
+                width_no_wrap = right - left
+                width_wrap = right_wrap - left_wrap
+                if width_wrap < width_no_wrap:
+                    left, right = left_wrap, right_wrap
+
+        # center coordinate of 'most compact' mask
+        center = left + ((right - left) // 2)
+        # shift: distance from middle coordinate of img to center of actual mask
+        shifts.append(s // 2 - center)
+
+    return shifts
 
     shifts = [0 for _ in img.shape]
     for i, (seq, maxval) in enumerate(zip(where, img.shape)):
@@ -372,7 +421,6 @@ def extract_edge_patch(
 
     m1 = np.roll(decode(n1["rle"]), shift, range(len(shift)))
     m2 = np.roll(decode(n2["rle"]), shift, range(len(shift)))
-
     # generate index offsets such that x[center_row-offset0:center_row+offset1,
     #                                    center_col-offset2:center_col+offset2]
     # slices x to return a box_size x box_size slice
