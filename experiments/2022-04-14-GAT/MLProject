@@ -12,6 +12,6 @@ docker_env:
 
 entry_points:
   main:
-    command: conda run -n env python gat_classification.py
+    command: python gat_classification.py
   debug:
     command: bash

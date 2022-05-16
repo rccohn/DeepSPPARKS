@@ -183,13 +183,16 @@ class Dataset:
         # make feature extraction agnostic to pca vs neural autoencoder
 
         if not force:
+            print("checking for processed data")
             result = self.load()
             if result:
+                print("using existing processed data")
                 # processed data successfully loaded, nothing to do
                 return
+            print("processed data not found")
 
         # force == true or processed data not loaded --> (re)process data
-
+        print("processing data")
         if self.mode == "pca":
             node_encode = pca_encode(
                 self.node_feature_model_uri, n_components=self.node_n_components
