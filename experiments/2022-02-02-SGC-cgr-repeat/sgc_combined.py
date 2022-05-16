@@ -2,14 +2,13 @@ import torch.cuda
 
 from data import Dataset
 import mlflow
-from sgc_model import SGCNet, train_loop
+from sgc_model import SGCNet
+from nn_train import train_loop, batch_acc_and_nll_loss
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from deepspparks.utils import load_params, aggregate_targets
 from deepspparks.visualize import agg_cm
 import itertools
-from sklearn.metrics import confusion_matrix
-from torch.optim import Adam
 from deepspparks.paths import PARAM_PATH, ARTIFACT_PATH
 
 
@@ -24,6 +23,8 @@ def main():
         raise SystemExit
 
     artifact = ARTIFACT_PATH  # use 'artifact' to avoid breaking old code
+
+    device = params.get("device", "cpu") if torch.cuda.is_available() else "cpu"
 
     # when running with mlflow project, run_name is not actually used, since the
     # project generates a run ID associated with the project. Instead, we set the
@@ -56,27 +57,20 @@ def main():
                         )
                     )
                     model = SGCNet(k=k, data=data_train)
-                    optimizer = Adam(model.parameters(), lr=lr, weight_decay=decay)
-                    mlflow.log_params(
-                        {
-                            "learning_rate": lr,
-                            "weight_decay": decay,
-                            "loss": "nll",
-                            "optimizer": "Adam",
-                            "cgr_thresh": thresh,
-                        }
-                    )
+
+                    mlflow.log_params({"cgr_thresh": thresh, "sgc-k": k})
 
                     sd, train_metrics = train_loop(
                         model,
                         data_train,
                         data_val,
                         data_test,
-                        optimizer,
-                        params["training"]["max_iter"],
-                        params["training"]["checkpoint_iter"],
-                        artifact,
+                        device,
+                        lr,
+                        decay,
+                        params,
                     )
+
                     model.load_state_dict(sd)
                     mlflow.pytorch.log_model(model, artifact_path="models/SGC")
 
@@ -111,25 +105,14 @@ def main():
         data_train = aggregate_targets(dtrain, params["repeat_aggregator"], thresh)
         data_val = aggregate_targets(dval, params["repeat_aggregator"], thresh)
         data_test = aggregate_targets(dtest, params["repeat_aggregator"], thresh)
-        if torch.cuda.is_available():
-            data_train = data_train.to("cuda")
-            data_val = data_val.to("cuda")
-            data_test = data_test.to("cuda")
 
-        yp_train = model.predict(data_train, mask=data_train.candidate_mask)
-        yp_val = model.predict(data_val, mask=data_val.candidate_mask)
-        yp_test = model.predict(data_test, mask=data_test.candidate_mask)
-
-        y_train = data_train.y[data_train.candidate_mask]
-        y_val = data_val.y[data_val.candidate_mask]
-        y_test = data_test.y[data_test.candidate_mask]
+        model = model.to(dtype=torch.float, device=device)
 
         cmlist = [
-            confusion_matrix(
-                gt.detach().cpu().numpy(), pred.detach().cpu().numpy(), labels=[0, 1]
-            )
-            for gt, pred in zip((y_train, y_val, y_test), (yp_train, yp_val, yp_test))
+            batch_acc_and_nll_loss(model, x, device, True)[2]
+            for x in [data_train, data_val, data_test]
         ]
+
         cm_path = artifact / "confusion_matrix.png"
         agg_cm(cmlist, False, cm_path, "Figures")
 

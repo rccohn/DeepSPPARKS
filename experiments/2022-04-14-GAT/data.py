@@ -9,7 +9,7 @@ from typing import Union
 from torch import flatten, Tensor
 import torch.cuda
 
-from torch_geometric.data import Data, Dataset
+from torch_geometric.data import Data, Dataset as TGDataset
 from deepspparks.utils import aggregate_targets
 
 from pathlib import Path
@@ -26,29 +26,6 @@ from typing import Optional
 # auto-encoders are trained and stored in the experiment:
 #            2022-03-08-learned-node-edge-features
 # auto-encoders can either be neural network or pca as a comparison
-
-
-class DatasetBackend(Dataset):
-    def __init__(self, root: Path, n: int, parent: Dataset):
-        super().__init__()
-        self.root = root
-        self.n = n
-        self.parent = parent
-
-    def __len__(self):
-        return self.n
-
-    def __getitem__(self, i):
-        # TODO store repeat aggregator as dataset attribute,
-        #     apply the aggregator to item.y after loading?
-        data = torch.load(self.root / ("{:04d}.pt".format(i)))
-
-        data = aggregate_targets(
-            data=data,
-            aggregator=self.parent.aggregator,
-            threshold=self.parent.threshold,
-        )
-        return data
 
 
 class Dataset:
@@ -320,6 +297,29 @@ class Dataset:
         # store dataset size and hash of directory to ensure consistency
         with open(self.info_file, "w") as f:
             json.dump(file_info, f)
+
+
+class DatasetBackend(TGDataset):
+    def __init__(self, root: Path, n: int, parent: Dataset):
+        super().__init__()
+        self.root = root
+        self.n = n
+        self.parent = parent
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, i):
+        # TODO store repeat aggregator as dataset attribute,
+        #     apply the aggregator to item.y after loading?
+        data = torch.load(self.root / ("{:04d}.pt".format(i)))
+
+        data = aggregate_targets(
+            data=data,
+            aggregator=self.parent.aggregator,
+            threshold=self.parent.threshold,
+        )
+        return data
 
 
 def pca_encode(model_uri, n_components):

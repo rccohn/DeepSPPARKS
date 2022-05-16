@@ -31,6 +31,10 @@ training:
 # recompute features/targets, even if existing processed data is found
 force_process_dataset: False
 
+# use gpu if available, or only run on cpu
+# valid options 'cpu' or 'cuda
+device: 'cuda'
+
 # Evaluation run ids- ignored if params['entry'] != "eval"
 
 # run id of best performing run to generate confusion matrices from

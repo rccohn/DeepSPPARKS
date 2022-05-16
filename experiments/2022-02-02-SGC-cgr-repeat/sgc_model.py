@@ -36,7 +36,7 @@ class SGCNet(torch.nn.Module):
             in_channels=num_features, out_channels=num_classes, K=k, cached=False
         )
 
-        self.double()  # forces weight tensors to double type, preventing
+        self.float()  # forces weight tensors to torch.float type, preventing
         # difficult-to-debug errors later
 
         # for logging
