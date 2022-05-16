@@ -20,7 +20,7 @@ from copy import deepcopy
 def train_step(model: Module, batch, optimizer):
     model.train()  # set model to training mode (enable gradients, dropout, etc)
     optimizer.zero_grad()  # reset gradient
-    mask = batch.grain_types == 0
+    mask = batch.mask
     y_pred = model(batch)  # generate predictions
     # for autoencoder-decoder, y_true is just x
     loss = nll_loss(y_pred[mask], batch.y[mask])  # compute loss
@@ -185,7 +185,7 @@ def batch_acc_and_nll_loss(
     if return_cm:
         cm = np.zeros((2, 2), dtype=float)
     for batch in dataloader:
-        mask = batch.grain_types == 0
+        mask = batch.mask
         batch.y = batch.y[mask].to(device=device, dtype=torch.long)
         batch.x = batch.x.to(device=device, dtype=float)
         log_probs = model(batch)[mask]

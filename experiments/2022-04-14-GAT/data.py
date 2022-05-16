@@ -109,6 +109,11 @@ class Dataset:
         self.aggregator: Optional[str] = None
         self.threshold: Optional[str] = None
 
+        # mask --> which grains are used for training and evaulation
+        mask_key = params["dataset"]["mask"]
+        mlflow.log_param("mask", mask_key)
+        self.mask_fn = mask_functions(mask_key)
+
         if log:
             self._log()
 
@@ -322,7 +327,23 @@ class DatasetBackend(TGDataset):
             aggregator=self.parent.aggregator,
             threshold=self.parent.threshold,
         )
+
+        # mask can be for selecting which grains to generate predictions for
+        # (ie only candidate grains)
+        data.mask = self.parent.mask_fn(data)
+
         return data
+
+
+def mask_functions(key):
+    _mask_functions = {
+        "candidate_grain": lambda x: x.grain_types == 0,  # only select candidate grain
+        # no mask, select all grains in system
+        "all_grains": lambda x: torch.BoolTensor(x.grain_types.shape),
+    }
+
+    assert key in _mask_functions.keys(), "invalid mask type {}".format(key)
+    return _mask_functions[key]
 
 
 def pca_encode(model_uri, n_components):

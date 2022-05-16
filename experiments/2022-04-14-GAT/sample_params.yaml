@@ -17,6 +17,10 @@ dataset:
   # recompute features/targets, even if existing processed data is found
   force_process: False
 
+  # which grains are used for training and evaluation
+  # current valid options are "candidate_grain" and "all_grains"
+  mask: candidate_grain
+
 
 encoder:
   mode: test # "pca" or "autoencoder" or "test"
