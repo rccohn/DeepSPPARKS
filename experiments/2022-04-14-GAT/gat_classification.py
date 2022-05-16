@@ -21,7 +21,7 @@ def main():
         mlflow.log_artifact(PARAM_PATH)
 
         dataset = Dataset(params)
-        dataset.process(params)
+        dataset.process(params["dataset"]["force_process"])
 
         sample_dataset_object = dataset.train[0]
 
