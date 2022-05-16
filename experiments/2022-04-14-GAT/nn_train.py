@@ -100,22 +100,6 @@ def train_loop(
         # checkpointing
         ta, tl = batch_acc_and_nll_loss(model, train_loader, data.device)
         va, vl = batch_acc_and_nll_loss(model, val_loader, data.device)
-        savepath = Path(
-            artifact_root, "model_state_dict_checkpoint_{:03d}".format(train_epoch)
-        )
-
-        torch.save(model.state_dict(), savepath)
-        mlflow.log_artifact(str(savepath.absolute()), "model_checkpoints")
-        mlflow.log_metrics(
-            {"fit_train_loss": tl, "fit_val_loss": vl},
-            step=train_epoch,
-        )
-
-        scheduler.step(vl)
-
-        # update progress bar
-        t.set_description(msg.format(train_epoch, max_epoch, tl, vl))
-        t.refresh()
 
         # keep track of best performing checkpoint
         if vl < best_metrics["val_loss"]:
@@ -127,6 +111,24 @@ def train_loop(
                 "best_epoch": train_epoch,
             }
             best_weights = model.state_dict()
+
+        savepath = Path(
+            artifact_root, "model_state_dict_checkpoint_{:03d}".format(train_epoch)
+        )
+
+        torch.save(model.state_dict(), savepath)
+        mlflow.log_artifact(str(savepath.absolute()), "model_checkpoints")
+        mlflow.log_metrics(
+            {"fit_train_loss": tl, "fit_val_loss": vl},
+            step=train_epoch,
+        )
+
+        # step down the learning rate, if applicable
+        scheduler.step(vl)
+
+        # update progress bar
+        t.set_description(msg.format(train_epoch, max_epoch, tl, vl))
+        t.refresh()
 
     print("logging model")
     model.load_state_dict(best_weights)
@@ -162,13 +164,8 @@ def train_loop(
         artifact_path="figures/",
     )
 
-    # python3.8 doesn't have dict union yet,
-    # so we append test_accuracy and test_loss using a dict comprehension
-    best_metrics = {
-        k: v
-        for x in [best_metrics, {"test_acc": test_acc, "test_loss": test_loss}]
-        for k, v in x.items()
-    }
+    for k, v in zip(("test_loss", "test_acc"), (test_loss, test_acc)):
+        best_metrics[k] = v
 
     mlflow.log_metrics(best_metrics)
     mlflow.pytorch.log_model(model, "best_model")
