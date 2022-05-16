@@ -151,7 +151,9 @@ class Dataset:
         """
         # returns True if loaded successfully, otherwise False
 
-        print("checking for existing processed data")
+        print(
+            "checking for existing processed data: {}".format(self.info_file.absolute())
+        )
 
         if not self.info_file.is_file():
             print("Info file not found! {}".format(self.info_file))
@@ -193,22 +195,43 @@ class Dataset:
 
         # force == true or processed data not loaded --> (re)process data
         print("processing data")
-        if self.mode == "pca":
+
+        if self.node_n_components == 0:
+            # turn off node features -> set all to 1
+            def node_encode(_: Tensor):
+                return torch.DoubleTensor([1.0])
+
+        elif self.mode == "pca":
             node_encode = pca_encode(
                 self.node_feature_model_uri, n_components=self.node_n_components
             )
-            edge_encode = pca_encode(
-                self.edge_feature_model_uri, n_components=self.edge_n_components
-            )
+
         elif self.mode == "autoencoder":
             node_encode = autoencoder_encode(self.node_feature_model_uri)
-            edge_encode = autoencoder_encode(self.edge_feature_model_uri)
 
         elif self.mode == "test":
             # for testing only --> "encoder" returns the input
             # flattened for dimensional compatibility
             def node_encode(x: Tensor):
                 return flatten(x, start_dim=0)
+
+        else:
+            raise ValueError('mode must be "pca" or "autoencoder"!')
+
+        # repeat the above process for edge features
+        if self.edge_n_components == 0:
+
+            def edge_encode(_: Tensor):
+                return torch.DoubleTensor([1.0])
+
+        elif self.mode == "pca":
+            edge_encode = pca_encode(
+                self.edge_feature_model_uri, n_components=self.edge_n_components
+            )
+        elif self.mode == "autoencoder":
+            edge_encode = autoencoder_encode(self.edge_feature_model_uri)
+
+        elif self.mode == "test":
 
             def edge_encode(x: Tensor):
                 return flatten(x, start_dim=0)
