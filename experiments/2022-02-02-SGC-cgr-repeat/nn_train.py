@@ -32,14 +32,15 @@ def train_loop(
     params,
     artifact_root=ARTIFACT_PATH,
 ):
-    model = model.float().to(device)
+    model = model.float()
+    if device == "cuda":
+        model = model.cuda()
     optimizer = Adam(
         model.parameters(),
         lr=lr,
         betas=(0.9, 0.999),
         weight_decay=decay,
     )
-
     scheduler = ReduceLROnPlateau(optimizer)
 
     mlflow.log_params(
@@ -51,8 +52,8 @@ def train_loop(
         }
     )
 
-    ta, tl = batch_acc_and_nll_loss(model, data_train)
-    va, vl = batch_acc_and_nll_loss(model, data_val)
+    ta, tl = batch_acc_and_nll_loss(model, data_train, device, False)
+    va, vl = batch_acc_and_nll_loss(model, data_val, device, False)
 
     mlflow.log_metrics({"fit_train_loss": tl, "fit_val_loss": vl}, step=0)
 
@@ -73,13 +74,15 @@ def train_loop(
     msg = "epoch {:>3d}/{:<3d} Train loss: {:.4e}, Val loss: {:.4e}"
     t = tqdm(epochs, desc=msg.format(0, max_epoch, tl, vl, leave=True))
 
+    data_train = data_train.to(device)
+
     for train_epoch in t:
         for _ in range(checkpoint_epoch):
             train_step(model, data_train, optimizer)
 
         # checkpointing
-        ta, tl = batch_acc_and_nll_loss(model, data_train, device)
-        va, vl = batch_acc_and_nll_loss(model, data_val, device)
+        ta, tl = batch_acc_and_nll_loss(model, data_train, device, False)
+        va, vl = batch_acc_and_nll_loss(model, data_val, device, False)
 
         savepath = Path(
             artifact_root, "model_state_dict_checkpoint_{:03d}.pt".format(train_epoch)
@@ -133,6 +136,7 @@ def train_loop(
 
 def batch_acc_and_nll_loss(model, data, device="cpu", return_cm=False):
     model = model.to(device=device, dtype=torch.float)
+    data = data.to(device)
     model.eval()
     mask = data.candidate_mask
     y = data.y[mask].to(device=device, dtype=torch.long)
