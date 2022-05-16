@@ -173,7 +173,7 @@ class Dataset:
                 print("hash mismatch! ref: {} actual: {}".format(md5_ref, md5_actual))
                 return False
             print("hashes match")
-            db = DatasetBackend(subset_root, info[subset]["n_files"])
+            db = DatasetBackend(subset_root, info[subset]["n_files"], parent=self)
             self.__setattr__(subset, db)
 
         print("Processed data successfully loaded!")
