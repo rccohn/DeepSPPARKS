@@ -8,6 +8,7 @@ from shutil import rmtree
 from typing import Union
 from torch import flatten, Tensor
 import torch.cuda
+from tqdm import tqdm
 
 from torch_geometric.data import Data, Dataset as TGDataset
 from deepspparks.utils import aggregate_targets
@@ -223,7 +224,9 @@ class Dataset:
             # iterate through all json graphs in directory
             # sort to preserve order for saving
             files = sorted((self.raw_root / subset).glob("*.json"))
-            for i, f in enumerate(files):
+            for i, f in tqdm(
+                enumerate(files), desc="processing files {}".format(subset)
+            ):
                 g = Graph.from_json(f)
                 # get subgraph centered at candidate grain with specified radius
                 sg: Graph = g.get_subgraph(r=self.subgraph_radius)

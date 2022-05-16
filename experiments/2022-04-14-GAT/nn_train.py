@@ -14,6 +14,7 @@ from sklearn.metrics import confusion_matrix
 import numpy as np
 from typing import Union, Dict
 from numbers import Number
+from copy import deepcopy
 
 
 def train_step(model: Module, batch, optimizer):
@@ -79,7 +80,7 @@ def train_loop(
         "val_loss": vl,
         "best_epoch": 0,
     }
-    best_weights = model.state_dict()
+    best_weights = deepcopy(model.state_dict())
 
     max_epoch = params["training"]["max_epoch"]
     checkpoint_epoch = params["training"]["checkpoint_epoch"]
@@ -110,7 +111,7 @@ def train_loop(
                 "val_loss": vl,
                 "best_epoch": train_epoch,
             }
-            best_weights = model.state_dict()
+            best_weights = deepcopy(model.state_dict())
 
         savepath = Path(
             artifact_root, "model_state_dict_checkpoint_{:03d}".format(train_epoch)
