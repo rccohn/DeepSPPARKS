@@ -129,7 +129,7 @@ FROM base AS build2
 COPY --chown=${USER}:${USER} requirements-dex.txt requirements.txt
 RUN  conda run -n env python -m pip install -r requirements.txt \
      && rm requirements.txt
-RUN chown -R ${USER}:${USER} ${HOME}/.jupyter
+RUN mkdir ${HOME}/.jupyter
 # default settings for jupyter (dark theme, show line numbers, folding, etc)
 
 COPY --chown=${USER}:${USER} user-settings-jupyter ${HOME}/.jupyter/lab/user-settings
