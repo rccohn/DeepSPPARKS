@@ -66,9 +66,16 @@ class Dataset:
         self.edge_feature_model_uri = params["encoder"]["edge_feature_model_uri"]
         self.target_name = "candidate_growth_ratio_repeats"
         self.node_patch_bounds = params["encoder"]["node_patch_bounds"]
-        self.node_n_components = params["encoder"]["node_n_components"]
-        self.edge_n_components = params["encoder"]["edge_n_components"]
+
         self.subgraph_radius = params["dataset"]["subgraph_radius"]
+
+        # maximum to extract during processing
+        self.node_n_components_max = params["encoder"]["node_n_components_max"]
+        self.edge_n_components_max = params["encoder"]["edge_n_components_max"]
+
+        # number of components to actually load into dataloader
+        self.node_n_components = self.node_n_components_max
+        self.edge_n_components = self.edge_n_components_max
 
         self.raw_root = Path(raw_root, self.dataset_name)
 
@@ -83,11 +90,11 @@ class Dataset:
                 self.dataset_name,
                 self.node_feature_model_uri.replace("://", "__").replace("/", "_"),
                 "-".join([str(x) for x in self.node_patch_bounds]),
-                "{}-components".format(self.node_n_components)
+                "{}-components".format(self.node_n_components_max)
                 if self.mode == "pca"
                 else "",
-                self.edge_feature_model_uri.replace("://", "__").replace("/", "_"),
-                "{}-components".format(self.edge_n_components)
+                self.edge_feature_model_uri.replace(":/", "__").replace("/", "_"),
+                "{}-components".format(self.edge_n_components_max)
                 if self.mode == "pca"
                 else "",
                 "r={}".format(self.subgraph_radius),
@@ -128,16 +135,28 @@ class Dataset:
         )
         mlflow.log_params({"node_patch_bounds": str(self.node_patch_bounds)})
 
-    def set_threshold_and_aggregator(
-        self, threshold: float, aggregator: str, log: bool = True
+    def set_threshold_aggregator_ncomponents(
+        self,
+        threshold: float,
+        aggregator: str,
+        node_n_components: int = None,
+        edge_n_components: int = None,
+        log: bool = True,
     ):
         self.aggregator = aggregator
         self.threshold = threshold
 
+        params = {"cgr_thresh": str(threshold), "repeat_aggregator": aggregator}
+
+        if node_n_components is not None:
+            self.node_n_components = node_n_components
+            params["node_n_components"] = node_n_components
+        if edge_n_components is not None:
+            self.edge_n_components = edge_n_components
+            params["edge_n_components"] = edge_n_components
+
         if log:
-            mlflow.log_params(
-                {"cgr_thresh": str(threshold), "repeat_aggregator": aggregator}
-            )
+            mlflow.log_params(params)
 
     def load(self) -> bool:
         """
@@ -203,7 +222,7 @@ class Dataset:
 
         elif self.mode == "pca":
             node_encode = pca_encode(
-                self.node_feature_model_uri, n_components=self.node_n_components
+                self.node_feature_model_uri, n_components=self.node_n_components_max
             )
 
         elif self.mode == "autoencoder":
@@ -226,7 +245,7 @@ class Dataset:
 
         elif self.mode == "pca":
             edge_encode = pca_encode(
-                self.edge_feature_model_uri, n_components=self.edge_n_components
+                self.edge_feature_model_uri, n_components=self.edge_n_components_max
             )
         elif self.mode == "autoencoder":
             edge_encode = autoencoder_encode(self.edge_feature_model_uri)
@@ -256,7 +275,7 @@ class Dataset:
             # sort to preserve order for saving
             files = sorted((self.raw_root / subset).glob("*.json"))
             for i, f in tqdm(
-                enumerate(files), desc="processing files {}".format(subset)
+                enumerate(files), desc="processing files {} ".format(subset)
             ):
                 g = Graph.from_json(f)
                 # get subgraph centered at candidate grain with specified radius
@@ -357,6 +376,20 @@ class DatasetBackend(TGDataset):
         # mask can be for selecting which grains to generate predictions for
         # (ie only candidate grains)
         data.mask = self.parent.mask_fn(data)
+
+        nc = self.parent.node_n_components
+        if nc:  # not 0
+            data.x = data.x[:, :nc]
+        else:  # == 0
+            data.x = torch.ones((len(data.x), 1), dtype=data.x.dtype)
+
+        ec = self.parent.edge_n_components
+        if ec:  # not 0
+            data.edge_attr = data.edge_attr[:, :ec]
+        else:  # == 0
+            data.edge_attr = torch.ones(
+                (len(data.edge_attr), 1), dtype=data.edge_attr.dtype
+            )
 
         return data
 

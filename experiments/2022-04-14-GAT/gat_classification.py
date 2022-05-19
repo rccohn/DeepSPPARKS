@@ -23,8 +23,6 @@ def main():
         dataset = Dataset(params)
         dataset.process(params["dataset"]["force_process"])
 
-        sample_dataset_object = dataset.train[0]
-
         mlflow.log_params(
             {
                 "repeat_aggregator": params["dataset"]["repeat_aggregator"],
@@ -40,12 +38,28 @@ def main():
         best_metrics_all = {"val_loss": 1e10}
         best_params_all = {"lr": None, "decay": None, "cgr_thresh": None}
 
-        for lr, decay, thresh in product(
+        for lr, decay, thresh, node_components, edge_components in product(
             params["optimizer"]["lr"],
             params["optimizer"]["decay"],
             params["cgr_thresh"],
+            params["encoder"]["node_n_components"],
+            params["encoder"]["edge_n_components"],
         ):
             with mlflow.start_run(run_name="GAT-training", nested=True):
+
+                # set the method for aggregating/thresholding targets
+                # for model to produce single prediction from repeated trials
+                # and number of components to use
+                dataset.set_threshold_aggregator_ncomponents(
+                    thresh,
+                    params["dataset"]["repeat_aggregator"],
+                    node_n_components=node_components,
+                    edge_n_components=edge_components,
+                    log=True,
+                )
+
+                sample_dataset_object = dataset.train[0]
+
                 # re-initialize model every time
                 model = gat_models.GatClassificationV1(
                     node_feat=len(sample_dataset_object.x[0]),
@@ -54,11 +68,7 @@ def main():
                     dropout1=params["model"]["dropout1"],
                     dropout2=params["model"]["dropout2"],
                 )
-                # set the method for aggregating/thresholding targets
-                # for model to produce single prediction from repeated trials
-                dataset.set_threshold_and_aggregator(
-                    thresh, params["dataset"]["repeat_aggregator"], True
-                )
+
                 print(
                     "training model with lr={}, decay={}, thresh={}".format(
                         lr, decay, thresh
