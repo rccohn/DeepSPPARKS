@@ -57,6 +57,7 @@ class GatClassificationV1(nn.Module):
         x = self.elu(x)
         x = self.dropout(x)
         x = self.conv2(x, data.edge_index)
+        x = self.elu(x)
         x = self.dropout(x)
         x = self.conv3(x, data.edge_index)
         x = self.log_softmax(x)
