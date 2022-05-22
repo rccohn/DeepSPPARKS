@@ -60,6 +60,14 @@ services:
     environment:
       - CONTAINER_NOTEBOOK_DIR # directory to open jupyter in
       - JUPYTER_PORT_HOST=8888 # port inside container
+    # uncomment to enable gpu
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     # allow jupyter to access host
     volumes:
       - type: bind
