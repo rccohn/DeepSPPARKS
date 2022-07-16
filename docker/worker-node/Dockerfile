@@ -134,8 +134,11 @@ RUN mkdir ${HOME}/.jupyter
 
 COPY --chown=${USER}:${USER} user-settings-jupyter ${HOME}/.jupyter/lab/user-settings
 
+# convenient so you don't have to remember path inside jupyter
+ENV HOSTFILES=${HOME}/jupyter-home/volumes/host-files
+
 # create empty directory to mount local files
-RUN mkdir -p ${HOME}/jupyter-home/volumes/host-files
+RUN mkdir -p ${HOSTFILES}
 
 # start in ~/jupyter to include temp dir, so 
 # scratch notebooks/temp files can be made instead of

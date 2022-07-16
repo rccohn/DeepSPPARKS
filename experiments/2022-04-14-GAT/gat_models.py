@@ -3,6 +3,8 @@ from torch_geometric.nn import GATConv
 from typing import Tuple
 
 
+# TODO create model with variable number of layers, inferred from
+#      list containing number of attention heads for each layer
 class GatClassificationV1(nn.Module):
     def __init__(
         self,

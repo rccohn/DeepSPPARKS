@@ -744,17 +744,20 @@ def img_to_graph(img, grain_labels):
     #      this function as single-thread and run in parallel for multiple graphs
     for idx in range(len(grain_labels)):
 
-        grain_mask = img == idx  # selects single grain
-
         # easy way to find neighbors of grain
         # roll image so that grain is roughly centered
         # expand its mask and look for which neighbors it overlaps
+        grain_mask = img == idx
+
         img_roll = roll_img(img, idx)
+
         # to find neighbors of grain, apply binary dilation tho the mask and look for
         # overlap TODO (select smaller window around rolled image, use where to get
         #  coords, look for neighbors directly?)
 
-        grain_mask_dilate = binary_dilation(grain_mask, selem=np.ones((3, 3), np.int))
+        grain_mask_dilate = binary_dilation(
+            img_roll == idx, selem=np.ones((3, 3), np.int)
+        )
 
         # TODO find threshold for min number of shared pixels to be considered a
         #  neighbor? would have to be scaled by perimiter or something
@@ -1175,43 +1178,52 @@ def load_json_old(json_dict):
 
 
 if __name__ == "__main__":
-    path = (
-        "/home/ryan/Desktop/tempruns/"
-        "399363-2021-09-20-12-00-04-290587326-candidate-grains-repeat/"
-        "spparks_init"
+    path = Path(
+        "/media/ryan/TOSHIBA EXT/Research/datasets/AFRL_AGG/spparks-bootstrap/"
+        "401356-2021-10-25-10-58-38-766362666-candidate-grains-repeat"
     )
-    path = (
-        "/home/ryan/Desktop/tempruns/"
-        "399350-2021-09-17-23-31-08-923308997-candidate-grains-repeat"
-    )
-    G = Graph.from_spparks_out(path)
-    print(G.__repr__())
-    p1 = "/home/ryan/Desktop/test1.json"
-    G.to_json(p1)
-    G2 = Graph.from_json(p1)
-    p2 = "/home/ryan/Desktop/test2.json"
-    G2.to_json(p2)
-    with open(p1, "r") as f:
-        d1 = json.loads(f.read())
-    with open(p2, "r") as f:
-        d2 = json.loads(f.read())
-    # files are not exaclty the same because ordering is different
-    # however, we can load json files and verify that
-    # ALL of the key-value pairs match between both files
-    for k in d1.keys():
-        assert d1[k] == d2[k]
-    for k in d2.keys():
-        assert d2[k] == d1[k]
-    print(d1.keys())
-    print(d1["metadata"]["gtype"])
-    print(d2["metadata"]["gtype"])
-    # path = '/media/ryan/TOSHIBA EXT/Research/datasets/DeepSPPARK/datasets/' \
-    # 'candidate-grains-small-v1.0.1/train/' \
-    # '2020_11_06_12_23_candidate_grains_master-run_533.json'
-    # g = Graph.from_json(path)
-    # img = g.to_image()
+    g = Graph.from_spparks_out(path)
+    sg = g.get_subgraph(g.cidx[0], r=1)
+    import matplotlib.pyplot as plt
+
+    plt.imshow(sg.to_image(True))
+    # path = (
+    #     "/home/ryan/Desktop/tempruns/"
+    #     "399363-2021-09-20-12-00-04-290587326-candidate-grains-repeat/"
+    #     "spparks_init"
+    # )
+    # path = (
+    #     "/home/ryan/Desktop/tempruns/"
+    #     "399350-2021-09-17-23-31-08-923308997-candidate-grains-repeat"
+    # )
+    # G = Graph.from_spparks_out(path)
+    # print(G.__repr__())
+    # p1 = "/home/ryan/Desktop/test1.json"
+    # G.to_json(p1)
+    # G2 = Graph.from_json(p1)
+    # p2 = "/home/ryan/Desktop/test2.json"
+    # G2.to_json(p2)
+    # with open(p1, "r") as f:
+    #     d1 = json.loads(f.read())
+    # with open(p2, "r") as f:
+    #     d2 = json.loads(f.read())
+    # # files are not exaclty the same because ordering is different
+    # # however, we can load json files and verify that
+    # # ALL of the key-value pairs match between both files
+    # for k in d1.keys():
+    #     assert d1[k] == d2[k]
+    # for k in d2.keys():
+    #     assert d2[k] == d1[k]
+    # print(d1.keys())
+    # print(d1["metadata"]["gtype"])
+    # print(d2["metadata"]["gtype"])
+    # # path = '/media/ryan/TOSHIBA EXT/Research/datasets/DeepSPPARK/datasets/' \
+    # # 'candidate-grains-small-v1.0.1/train/' \
+    # # '2020_11_06_12_23_candidate_grains_master-run_533.json'
+    # # g = Graph.from_json(path)
     # # img = g.to_image()
-    # # fig, ax = plt.subplots()
-    # # ax.imshow(img, cmap='rainbow')
-    # # plt.show()
-    # # print((img == -1).sum())
+    # # # img = g.to_image()
+    # # # fig, ax = plt.subplots()
+    # # # ax.imshow(img, cmap='rainbow')
+    # # # plt.show()
+    # # # print((img == -1).sum())
