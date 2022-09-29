@@ -13,6 +13,9 @@ This section provides a working example for running the simple graph convolution
 ## experiments/
 This section contains the code for individual experiments for characterizing grain growth trajectories. Experiments are configured as mlflow projects. Each experiment contains a sample YAML file with descriptions of the parameters that can be passed to the experiment. To run mlflow projects, `docker/worker-run-experiment/run_experiment.sh` is used. 
 
+**NOTE:**
+Some of the paths have changed, so some experiments may return file not found or permission denied errors. Following the code should reveal what paths need to be updated, and I'll fix this when I can get around to it, but in the meantime, see the `getting-started/` section for a fully working example.
+
 ## deepspparks/
 This section defines the Graph data structure containing the SPPARKS simulation data, and provides some additional data analysis and
 visualization functions that are commonly used in several experiments.
