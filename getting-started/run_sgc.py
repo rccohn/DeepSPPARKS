@@ -14,6 +14,7 @@ def main():
     os.environ['PARAM_FILE']=str(Path(param_file).absolute())
     os.environ['RAW_DATA_ROOT']=str(Path('data','json').absolute())
     os.environ['PROCESSED_DATA_ROOT']=str(Path('data','processed').absolute())
+    os.environ['DOCKER_UID'] = str(os.getuid())
     with open(param_file, 'r') as f:
         experiment = safe_load(f)['mlflow']['experiment_name']
     os.environ['MLFLOW_EXPERIMENT_NAME'] = experiment

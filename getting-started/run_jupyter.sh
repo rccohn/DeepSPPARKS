@@ -5,6 +5,8 @@ docker run --rm  \
 	-e MLFLOW_TRACKING_USERNAME=${MLFLOW_TRACKING_USERNAME} \
 	-e MLFLOW_TRACKING_PASSWORD=${MLFLOW_TRACKING_PASSWORD} \
 	-e CONTAINER_NOTEBOOK_DIR=/mnt \
+	-e DOCKER_UID=${UID} \
+	-e MLFLOW_TRACKING_PASSWORD=${MLFLOW_TRACKING_PASSWORD} \
 	-v $(pwd)/jupyter:/home/jupyter/notebooks \
 	-v $(pwd)/data:/home/jupyter/data \
-	rccohn/deepspparks-worker:dex \
+	rccohn/deepspparks-worker:dex  $@ \

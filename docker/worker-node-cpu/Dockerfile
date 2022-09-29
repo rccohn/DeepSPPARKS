@@ -1,9 +1,4 @@
-# OS and architecture, needed for base images and nvidia key rotation
-# operating system
-
 FROM ubuntu:18.04 AS base
-# build arguments: non-root user
-
 # Set the default shell for RUN commands
 SHELL ["/bin/bash", "-c"]
 
@@ -25,13 +20,14 @@ RUN apt-get update && apt-get -y --no-install-recommends install \
 		ca-certificates \
 		ssh \
 		wget \ 
+		git \
 		build-essential \
 		netcat \
 		iputils-ping \
-		iptables \
-	&& apt-get clean \
-	&& apt-get autoremove \
-	&& rm -rf /var/lib/apt/lists/* # clear package lists to avoid unecessary storage
+		iptables && \
+	apt-get clean && \
+	apt-get autoremove && \
+	rm -rf /var/lib/apt/lists/* # clear package lists to avoid unecessary storage
 
 USER ${USER}
 
@@ -43,6 +39,13 @@ WORKDIR ${HOME}
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
     && bash Miniconda3-latest-Linux-x86_64.sh -b -p ${HOME}/miniconda/ \
 	&& rm Miniconda3-latest-Linux-x86_64.sh
+
+# install su-exec needed for entrypoint
+RUN cd /home && git clone https://github.com/ncopa/su-exec.git && \
+    # build su-exec and move the binary to /usr/local/sbin
+    cd su-exec && make su-exec && mv su-exec /usr/local/sbin && \
+    # remove the remaining files when we are done
+    rm -rf /home/su-exec
 
 # Set the path env to inclcude conda command
 ENV PATH=${HOME}/miniconda/condabin:${PATH}
@@ -89,6 +92,10 @@ RUN mkdir ${HOME}/volumes/processed-data  # processed dat (mount as read-write)
 RUN mkdir ${HOME}/volumes/inputs  # for params.yaml and other input files
 RUN mkdir -p /root/artifacts # temp storage for mlflow artifacts
 
+COPY entry_base.sh /home/entry_base.sh
+RUN chmod +x /home/entry_base.sh
+ENTRYPOINT [ "/home/entry_base.sh" ]
+
 # for data exploration and analysis
 # note that container should be run with --init 
 # to avoid the PID 1 zombie process issue if using jupyter
@@ -101,7 +108,7 @@ RUN  conda run -n env python -m pip install -r requirements.txt \
 RUN mkdir ${HOME}/.jupyter
 # default settings for jupyter (dark theme, show line numbers, folding, etc)
 
-COPY  user-settings-jupyter ${HOME}/.jupyter/lab/user-settings
+COPY  user-settings-jupyter /home/jupyter-user-settings
 
 # convenient so you don't have to remember path inside jupyter
 ENV HOSTFILES=${HOME}/jupyter-home/volumes/host-files
@@ -114,6 +121,6 @@ RUN mkdir -p ${HOSTFILES}
 # writing all files to host
 WORKDIR ${HOME}/jupyter-home
 # sample command for starting jupyter
-COPY start_jupyter.sh .
-RUN chmod +x start_jupyter.sh
-ENTRYPOINT [ "./start_jupyter.sh" ]
+COPY entry_jupyter.sh .
+RUN chmod +x entry_jupyter.sh
+ENTRYPOINT [ "./entry_jupyter.sh" ]

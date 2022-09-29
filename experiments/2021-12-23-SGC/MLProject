@@ -6,6 +6,7 @@ docker_env:
   environment:
     - MLFLOW_TRACKING_USERNAME
     - MLFLOW_TRACKING_PASSWORD
+    - DOCKER_UID
     
   volumes:
     - "${PARAM_FILE}:/root/inputs/params.yaml:ro" # params yaml file

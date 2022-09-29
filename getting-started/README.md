@@ -51,13 +51,6 @@ source env/bin/activate && bash run_jupyter.sh
 ```
 `getting_started.ipynb` demonstrates a few common functions with deepspparks and mlflow for working with data and results.
 
-  ## Note:
-  The container runs as root, so when you create notebooks and other files, they will be owned by root. Typically, Docker containers are run as nonroot users to avoid situations like this. However, this requires a slight workaround and I haven't had time to implement this yet. To access the results on the host machine, you may need to change the ownership using the following approach:
-  ```bash
-  # to change ownership of my-notebook.ipynb
-  sudo chown $UID my-notebook.ipynb
-  ```
-
 # Generating a new dataset
 The simulation code is available in the [spparks-meso](https://www.github.com/holmgroup/spparks-meso) repository. After following the instructions to set up the meso utility, run it with docker to generate simulations. The following command will generate a dataset of 5 initial states and 3 repeated grain growth simulations.
 

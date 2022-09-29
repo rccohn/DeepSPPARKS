@@ -1,3 +1,8 @@
+Note:
+The environment in this container works, but note the following:
+  - It runs as UId 1000. If you have a different UID there may be permission issues while bind mounting files
+  - Some of the paths used to mount files have changed, so some experiments may run into file not found error. I'll update this when I can, but in the meantime, see the example with worker-node-cpu in the getting-started section of this repository for a working example.
+  
 Containers for running mlFlow experiments and data analasis/exploration with jupyter. Supports GPU-accelerated computation
 with nvidia container runtime.
 
@@ -9,7 +14,3 @@ There are two options:
 
 
 Note: deepspparks source is needed IN THE BUILD CONTEXT to work. Use the included tool (./container)  to build the container instead of running docker build by yourself. './container -b' builds the installation for running mlflow projects. './container -b --dex' builds the version for data exploration and analysis. './container' copies and Installs deepspparks as a module so it can be accessed with import deepsppark.
-
-IMPORTANT: If running jupyter, you must run docker with the --init argument in docker run. Otherwise the container may crash due to the PID 1 zombie reaping problem. For more info: https://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem/
-
-Note that env.yaml on its own has a dependency conflict between tensorflow and pycocotools.  For some reason, installing the environment, then manually upgrading numpy, resolves this conflict. To reproduce this environment, use both env.yaml AND the additional steps specified in the Dockerfile.
