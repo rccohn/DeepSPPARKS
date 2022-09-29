@@ -1,0 +1,26 @@
+# sample parameters
+
+mlflow: # relevant mlflow parameters
+  project_uri: git@github.com:rccohn/DeepSpparks.git#experiments/2021-12-23-SGC # path to this project's directory
+  project_version: main # name of git branch, git commit hash, or ".file" to run locally instead of from git repo
+  experiment_name: Deepspparks # agg-candidate-grains-single  # tracking experiment namei
+  dataset_name: sample_small_dataset  # path relative to dataset root
+
+# cgr values below this -> normal grain growth. Otherwise, abnormal grain growth
+cgr_thresh: [6, 8] #[6, 8, 10, 12, 14]
+
+# iterations of message passing for 
+k: [1, 2] # [1,2,3,4]
+
+# settings for Adam
+optimizer:
+  lr: [0.005, 0.01] #[0.001, 0.005, 0.01] # learning rate
+  decay: [0.0005, 0.01] #[0.001, 0.0005, 0.0001] # adam weight decay
+
+# for nn training
+training:
+  max_iter: 500
+  checkpoint_iter: 50 # model weights/metrics saved at each checkpoint
+
+# recompute features/targets, even if existing processed data is found
+force_process_dataset: False

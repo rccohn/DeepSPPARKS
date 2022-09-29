@@ -1,3 +1,6 @@
+"""
+Commonly used model performance metrics that are reused in several mlflow experiments.
+"""
 import mlflow
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report

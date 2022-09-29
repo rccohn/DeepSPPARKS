@@ -1,8 +1,6 @@
 # run on gcp container optimized-os, which doesn't have docker-compose
 # instead, we run docker-compose itself AS a docker image 
 
-# TODO test
-
 COMPOSE_IMAGE=docker/compose:1.29.2
 
 # echo $COMPOSE_IMAGE

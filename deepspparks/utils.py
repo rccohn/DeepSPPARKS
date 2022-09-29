@@ -1,3 +1,9 @@
+"""
+Various utility functions from deepspparks that don't fit elsewhere.
+load_params() and aggregate_targets(), and their associated helper
+functions, are the main ones still in use. The others are considered
+to be deprecated.
+"""
 import copy
 import numpy as np
 import os

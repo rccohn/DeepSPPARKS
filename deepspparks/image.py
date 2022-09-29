@@ -1,3 +1,6 @@
+"""
+Image processing functions
+"""
 import h5py
 import numpy as np
 from pathlib import Path
@@ -82,9 +85,19 @@ def img_from_output(
 
 def roll_img(img, i):
     """
-    convenience function for centering a grain on the image
+    Given a rxc image where each pixel has a numeric ID i,
+    center the mask containing all pixels with ID i in the image.
 
-    see roll_shifts() for more info
+    See roll_shifts() for more info
+    
+    Parameters
+    ----------
+    img: ndarray
+        2d image of pixels
+    
+    i: numeric, int or float
+        ID to center in image.
+    
     """
     shifts = roll_shifts(img, i)
     img = np.roll(img, shifts, axis=range(len(shifts)))
@@ -179,6 +192,28 @@ def roll_img_old(img, i):
 
 
 def node_patch_to_image(rle: dict, mp: Tuple[int] = [0.8, 0.4, 0.6, 0.2]) -> np.ndarray:
+    """
+    Converts a compressed representatin of an individual grain (node on graph) to an image.
+    Used for autoencoder experiments.
+    
+    See extract_node_patch() for more details
+    
+    Parameters
+    -----------
+    rle: dict
+        contains keys for size, counts, and type.
+        size and counts determined from pycocotools.mask.encode() RLE encoding
+        type indicates grain 'type' in SPPARKS simulations- candidate, red, blue.
+    
+    mp: tuple(int)
+       mp[:3] maps integer ids for grain type to pixel intensity values. 
+       mp[3] selects the background intensity of the image.
+    
+    Returns
+    --------
+    img: ndarray
+        image of individual grain (node on graph)        
+    """
     # maps 0 (candidate grain), 1 (blue grain), 2 (red grain) to values of 0.6, 0.2,
     # and 0.4, respectively adding 0.2 results in an image where background has
     # values 0.2, blue grain (lower mobility) has values 0.4, red grain (higher
@@ -192,6 +227,32 @@ def node_patch_to_image(rle: dict, mp: Tuple[int] = [0.8, 0.4, 0.6, 0.2]) -> np.
 def edge_patch_to_image(
     patch: dict, edge_offset: float = 0.1, mp: Tuple[int] = (0.8, 0.4, 0.6, 0.2)
 ) -> np.ndarray:
+    """
+    Converts compressed representation of grain boundary to an image.
+    Used for autoencoder experiments.
+    
+    See extract_edge_patch() for more details
+    
+    Parameters
+    ----------
+    patch: dict
+        contains size and counts for whole image (both grains), as well as the type of
+        each grain, and the coordinates of the pixels on each grain located on the edge.
+    
+    edge_offset: float
+        How much higher the intensity of pixels on the grain boundary should be
+        than the bulk grain. Used to distinguish edge pixels, especially when
+        both grains are the same type.
+    
+    mp: tuple(int)
+       mp[:3] maps integer ids for grain type to pixel intensity values. 
+       mp[3] selects the background intensity of the image.
+    
+    Returns
+    --------
+    img: ndarray
+        image of individual grain boundary (edge on graph)
+    """
     img = np.zeros(patch["size"], dtype=float) + mp[-1]
     for i in range(2):
         # fill in pixels for each grain with intensity corresponding to their type
@@ -300,14 +361,24 @@ def extract_node_patch(
     g, n: int, bounds: Tuple[int, int, int, int] = (208, 208, 304, 304)
 ) -> dict:
     """
-    g: deepspparks graph Graph
-        graph to extract node patch from
+    Extracts compressed representation of an individual grain (node on graph)
+    
+    Parameters
+    -----------
+    g: Graph
+        deepspparks graph to extract node patch from
     n: int
         key of node in graph
-
+    
     bounds: tuple(int)
         min row, min c, (inclusive) max row, max c (exclusive) used to select
         fixed-size image patch of grain
+    
+    Returns
+    -------
+    rle: dict
+        dictionary containing RLE representation and grain type of node.
+        
     """
     node = g.nodes[n]
     r1, c1, r2, c2 = bounds
@@ -323,6 +394,31 @@ def extract_node_patch(
 def extract_edge_patch(
     g, e: Tuple[int, int], box_size: int = 48, width: int = 2
 ) -> dict:
+    
+    """
+    Extracts compressed representation of an individual grain boundary (edge on graph)
+    
+    Parameters
+    -----------
+    g: Graph
+        deepspparks graph to extract edge patch from
+    e: tuple(int, int)
+        indices of source and target nodes defining edge in graph
+    
+    box_size: int
+        width and height of square patches in pixels
+    
+    width: int
+        width of grain boundary, in pixels.
+        Pixels on the boundary will be highlighted during reconstruction.
+    
+    Returns
+    -------
+    rle: dict
+        dictionary containing RLE representation and grain type of node.
+        
+    """
+
     # n1, n2: nodes in graph that rae connected by an edge
     # find union and roll it to the center of the image
     # get nodes from edge
@@ -509,6 +605,8 @@ def extract_edge_patch(
 
 
 if __name__ == "__main__":
+    """test case"""
+    
     x = np.zeros((6, 6))
     x[1:4, 1:4] = 1
     z = x.copy()

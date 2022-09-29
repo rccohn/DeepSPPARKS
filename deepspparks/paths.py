@@ -1,3 +1,8 @@
+"""
+Commonly paths that are reused when running experiments
+in Dockerized environments. Paths are saved here as constants
+to make it easier to avoid typos.
+"""
 from pathlib import Path
 import os
 

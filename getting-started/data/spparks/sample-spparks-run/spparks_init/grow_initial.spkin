@@ -1,0 +1,27 @@
+seed 456197939
+variable systemsize equal 256 # default: 512
+variable	 volume equal ${systemsize}*${systemsize}
+
+app_style	 potts ${volume}
+dimension	 2
+lattice		 sq/8n 1.0
+region		 box block 0 ${systemsize} 0 ${systemsize} -0.5 0.5
+create_box	 box
+create_sites	 box
+set		 site unique
+
+# sweep 		 random
+solve_style      tree
+sector		  no
+
+temperature	 0.9
+
+diag_style       cluster
+stats            100.0
+
+dump		 1 dream3d 503.0 initial*.dream3d id site version 6.0 dataset SyntheticVolume
+dump_modify	 1 delay 503
+run 		 500.0
+
+temperature 0.1
+run 3

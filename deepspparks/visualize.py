@@ -1,3 +1,7 @@
+"""
+Commonly used visualization techniques that are reused in several experiments.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path

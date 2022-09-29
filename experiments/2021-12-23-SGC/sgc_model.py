@@ -112,7 +112,6 @@ def train_step(model, batch, optimizer, mask):
     return
 
 
-# TODO update docstring
 def train_loop(model, data_train, data_valid, data_test, optimizer, max_iterations,
                checkpoint_iterations, artifact_root):
     """
