@@ -2,6 +2,7 @@
 .*
 !*.gitignore
 !*.pre-commit-config.yaml
+!.github/
 
 # Byte-compiled / optimized / DLL files
 *__pycache__/
