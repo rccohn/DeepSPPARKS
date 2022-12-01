@@ -1,5 +1,6 @@
 from deepspparks.graphs import Graph
 from deepspparks.utils import load_params
+import deepspparks.paths as dp
 import mlflow
 from multiprocessing import get_context, cpu_count
 import os
@@ -53,11 +54,11 @@ def save_edge_patch(args):
 
 def main():
     print("parsing params")
-    params = load_params("/root/inputs/params.yaml")
+    params = load_params(dp.PARAM_PATH)
 
     with mlflow.start_run(nested=False):
         # save the param file
-        mlflow.log_artifact("/root/inputs/params.yaml")
+        mlflow.log_artifact(dp.PARAM_PATH)
         # dataset from which images are generated
         parent_dataset = params["mlflow"]["parent_dataset"]
         # indices r1:r2, c1:c2 from rolled images used to extract node patch images
@@ -88,8 +89,8 @@ def main():
             params["mlflow"]["dataset_version"],
         )
         mlflow.set_tag("dataset", output_dataset_name)
-        parent_dataset_path = Path("/root", "data", "datasets", parent_dataset)
-        output_dataset_path = Path("/root", "data", "processed", output_dataset_name)
+        parent_dataset_path = Path(dp.RAW_DATA_ROOT, parent_dataset)
+        output_dataset_path = Path(dp.PROCESSED_DATA_ROOT, output_dataset_name)
 
         # TODO remove this or make it conditional? it was used a lot for testing
         #     to avoid previously written data

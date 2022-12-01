@@ -1,0 +1,17 @@
+name: neu-baseline
+
+# See DeepSPPARK/docker/agg-worker for container
+docker_env:
+  image: rccohn/deepspparks-worker:latest
+
+  volumes:
+    - "${PARAM_FILE}:/home/deepspparks/volumes/inputs/params.yaml:ro" # params yaml file
+    - "${CONTAINER_SSH}:/home/deepspparks/.ssh:ro" # ~/.ssh (only needed for sftp artifact stores)
+    - "${RAW_DATA_ROOT}:/home/deepspparks/volumes/datasets:ro" # for dataset
+    - "${PROCESSED_DATA_ROOT}:/home/deepspparks/volumes/processed:rw"  # for processed data
+
+entry_points:
+  main:
+    command: python gat_regression.py
+  debug:
+    command: bash
