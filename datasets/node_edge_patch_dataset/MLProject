@@ -3,6 +3,8 @@ name: extract-node-edge-patches
 # See DeepSPPARK/docker/agg-worker for container
 docker_env:
   image: rccohn/deepspparks-worker:latest
+  
+  environment: [MLFLOW_TRACKING_USERNAME, MLFLOW_TRACKING_PASSWORD]
 
   volumes:
     - "${PARAM_FILE}:/home/deepspparks/volumes/inputs/params.yaml:ro" # params yaml file
